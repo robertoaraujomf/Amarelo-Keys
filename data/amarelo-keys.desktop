@@ -3,6 +3,6 @@ Type=Application
 Name=Amarelo Keys
 Comment=Configure keyboard remapping
 Exec=amarelo-keys --gui
-Icon=keyboard
+Icon=amarelo-keys
 Terminal=false
 Categories=Settings;Utility;Accessibility;
