@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Amarelo Keys
+Comment=Keyboard remapping utility for users with defective keyboards
+Exec=bash -c "PYTHONPATH=$HOME/.local/share/amarelo-keys python3 -m amarelo_keys --daemon"
+Icon=keyboard
+Terminal=false
+Categories=Utility;Accessibility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["meson-python>=0.3"]
+build-backend = "meson.build"
+
+[project]
+name = "amarelo-keys"
+version = "1.0.0"
+description = "Keyboard remapping utility for users with defective keyboards"
+requires-python = ">=3.10"
+dependencies = [
+    "pynput>=1.7.6",
+    "pycaw>=20240216;platform_system=='Windows'",
+]
+
+[project.optional-dependencies]
+gui = [
+    "pygobject>=3.48",
+]
+
+[project.scripts]
+amarelo-keys = "amarelo_keys.main:main"
+amarelo-keys-daemon = "amarelo_keys.daemon:main"
+
+[project.data]
+schemas = "data/"

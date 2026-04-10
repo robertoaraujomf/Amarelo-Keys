@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Amarelo Keys
+Comment=Configure keyboard remapping
+Exec=amarelo-keys --gui
+Icon=keyboard
+Terminal=false
+Categories=Settings;Utility;Accessibility;
