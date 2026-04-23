@@ -239,7 +239,7 @@ def get_all_available():
 
 
 class KeySender:
-    SPECIAL_KEYS = {"Tab", "ISO_Left_Tab", "Return", "Escape", "space", "BackSpace", "Delete",
+    SPECIAL_KEYS = {"Tab", "ISO_Left_Tab", "shift+Tab", "Return", "Escape", "space", "BackSpace", "Delete",
                     "Home", "End", "Prior", "Next", "Left", "Right", "Up", "Down",
                     "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
                     "Insert", "KP_Enter", "Pause", "Print"}
@@ -266,9 +266,12 @@ class KeySender:
     def send_key(self, xkey, modifiers=None, window_id=None):
         if not xkey:
             return False
-        
+
+        if xkey == "ISO_Left_Tab":
+            xkey = "shift+Tab"
+
         wid = window_id or self.last_window or ""
-        
+
         if wid:
             print(f"  Sending to window ID: {wid}")
             try:
@@ -284,7 +287,7 @@ class KeySender:
             subprocess.run(["xdotool", "key", xkey], capture_output=True)
         else:
             subprocess.run(["xdotool", "type", "--", xkey], capture_output=True)
-        
+
         return True
 
     def send_string(self, char):
@@ -394,18 +397,57 @@ class ConfigWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} - Configuração")
         self.setMinimumSize(750, 550)
         self.setWindowFlags(Qt.Window)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a2332;
+                color: #e0e0e0;
+            }
+            QGroupBox {
+                color: #aaa;
+                border: 1px solid #3d4a5c;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                color: #aaa;
+            }
+            QListWidget {
+                background-color: #2d3a4f;
+                color: #e0e0e0;
+                border: 1px solid #3d4a5c;
+                border-radius: 4px;
+            }
+            QListWidget::item:selected {
+                background-color: #3d4a5f;
+                color: #FFD700;
+            }
+            QPushButton {
+                background-color: #2d3a4f;
+                color: #FFD700;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 20px;
+            }
+            QPushButton:hover {
+                background-color: #3d4a5f;
+            }
+        """)
 
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
 
         title = QLabel(APP_NAME)
-        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #FFC107;")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; color: #FFD700;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
         subtitle = QLabel("Selecione os caracteres e teclas para usar como teclado virtual")
-        subtitle.setStyleSheet("color: #666;")
+        subtitle.setStyleSheet("color: #aaa;")
         subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(subtitle)
 
@@ -592,8 +634,11 @@ class ConfigWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
-    def on_tray_activate(self):
-        self.show_config()
+    def on_tray_activate(self, reason):
+        if reason == QSystemTrayIcon.Trigger:
+            self.show_config()
+        elif reason == QSystemTrayIcon.Context:
+            self.tray.contextMenu().exec_(QCursor.pos())
 
     def quit_app(self):
         if self.hotkey_listener:
@@ -629,18 +674,40 @@ class SelectionWindow(QWidget):
     def init_ui(self):
         self.setWindowTitle("Selecione")
         self.setFixedWidth(300)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a2332;
+            }
+            QListWidget {
+                background-color: #2d3a4f;
+                color: #e0e0e0;
+                border: none;
+            }
+            QListWidget::item {
+                padding: 6px;
+                border-radius: 4px;
+            }
+            QListWidget::item:selected {
+                background-color: #FFD700;
+                color: #1a2332;
+            }
+        """)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
         frame = QFrame()
-        frame.setStyleSheet("background: white; border-radius: 8px;")
+        frame.setStyleSheet("""
+            background-color: #1a2332;
+            border-radius: 8px;
+            border: 1px solid #3d4a5c;
+        """)
         frame.setGraphicsEffect(QGraphicsDropShadowEffect())
         frame_layout = QVBoxLayout(frame)
         frame_layout.setContentsMargins(10, 10, 10, 10)
 
         title = QLabel("Selecione uma opção")
-        title.setStyleSheet("font-weight: bold; color: #333;")
+        title.setStyleSheet("font-weight: bold; color: #FFD700;")
         frame_layout.addWidget(title)
 
         self.list_widget = QListWidget()
@@ -651,7 +718,7 @@ class SelectionWindow(QWidget):
         frame_layout.addWidget(self.list_widget)
 
         hint = QLabel("↑↓ Navegar  |  Enter: Enviar  |  Esc: Sair")
-        hint.setStyleSheet("color: #999; font-size: 10px;")
+        hint.setStyleSheet("color: #5a6a7a; font-size: 10px;")
         frame_layout.addWidget(hint)
 
         layout.addWidget(frame)
@@ -677,26 +744,21 @@ class SelectionWindow(QWidget):
         if 0 <= index < len(self.items):
             item = self.items[index]
             print(f"EXE: {item.name} xkey={item.xkey}")
-            
-            # Get window ID from parent
+
             window_id = None
             parent_win = self.parent_window
             if parent_win and hasattr(parent_win, '_previous_window'):
                 window_id = parent_win._previous_window
-            
-            # Hide the selection window FIRST
+
             self.hide()
-            QApplication.instance().processEvents()
-            time.sleep(0.2)
-            
+            time.sleep(0.02)
+
             if window_id:
                 print(f"Sending to previous window: {window_id}")
                 self.key_sender.last_window = window_id
                 self.key_sender.send_key(item.xkey or item.name, window_id=window_id)
             else:
                 self.key_sender.send_key(item.xkey or item.name)
-            
-            time.sleep(0.2)
 
     def keyPressEvent(self, event):
         key = event.key()
