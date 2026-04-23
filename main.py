@@ -270,20 +270,7 @@ class KeySender:
         if xkey == "ISO_Left_Tab":
             xkey = "shift+Tab"
 
-        wid = window_id or self.last_window or ""
-
-        if wid:
-            print(f"  Sending to window ID: {wid}")
-            try:
-                subprocess.run(["xdotool", "windowactivate", "--sync", wid], capture_output=True)
-                time.sleep(0.05)
-            except Exception:
-                pass
-            if xkey in KeySender.SPECIAL_KEYS:
-                subprocess.run(["xdotool", "key", xkey], capture_output=True)
-            else:
-                subprocess.run(["xdotool", "type", "--", xkey], capture_output=True)
-        elif xkey in KeySender.SPECIAL_KEYS:
+        if xkey in KeySender.SPECIAL_KEYS:
             subprocess.run(["xdotool", "key", xkey], capture_output=True)
         else:
             subprocess.run(["xdotool", "type", "--", xkey], capture_output=True)
@@ -750,21 +737,8 @@ class SelectionWindow(QWidget):
         if 0 <= index < len(self.items):
             item = self.items[index]
             print(f"EXE: {item.name} xkey={item.xkey}")
-
-            window_id = None
-            parent_win = self.parent_window
-            if parent_win and hasattr(parent_win, '_previous_window'):
-                window_id = parent_win._previous_window
-
             self.hide()
-            time.sleep(0.02)
-
-            if window_id:
-                print(f"Sending to previous window: {window_id}")
-                self.key_sender.last_window = window_id
-                self.key_sender.send_key(item.xkey or item.name, window_id=window_id)
-            else:
-                self.key_sender.send_key(item.xkey or item.name)
+            self.key_sender.send_key(item.xkey or item.name)
 
     def keyPressEvent(self, event):
         key = event.key()
