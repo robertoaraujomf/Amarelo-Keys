@@ -304,12 +304,14 @@ class GlobalHotkeyListener(QThread):
         self.running = True
         self.kbd = None
         self.overlay_active = False
+        self._insert_lock = False
 
     def stop(self):
         self.running = False
 
     def set_overlay_active(self, active):
         self.overlay_active = active
+        self._insert_lock = active
 
     def run(self):
         print("DEBUG: Listener thread started", flush=True)
@@ -349,11 +351,15 @@ class GlobalHotkeyListener(QThread):
                 try:
                     for event in kbd.read():
                         if event.type == evdev.ecodes.EV_KEY:
-                            if event.value == 1:  # Key press
+                            if event.value == 1:
                                 if event.code == ecodes.KEY_INSERT:
+                                    if self._insert_lock:
+                                        continue
                                     print("DEBUG: Insert key detected!", flush=True)
                                     self.insert_pressed.emit()
-                                    time.sleep(0.2)
+                                    self._insert_lock = True
+                                    time.sleep(0.3)
+                                    self._insert_lock = False
                                 elif self.overlay_active and event.code in (
                                         ecodes.KEY_UP,
                                         ecodes.KEY_DOWN,
