@@ -96,7 +96,7 @@ class KeySymbols:
 
 class GlobalHotkeyListener:
     """Listen for global hotkeys using evdev"""
-    
+
     KEY_NAME_TO_EVDEV = {
         'Insert': 110, 'Home': 102, 'End': 107, 'Delete': 111,
         'Page Up': 104, 'Page Down': 109,
@@ -114,9 +114,9 @@ class GlobalHotkeyListener:
         '0': 11, '1': 2, '2': 3, '3': 4, '4': 5, '5': 6, '6': 7,
         '7': 8, '8': 9, '9': 10,
     }
-    
+
     hotkey_triggered = pyqtSignal(str)
-    
+
     def __init__(self, mappings, callback):
         self.mappings = dict(mappings)
         self.running = True
@@ -124,6 +124,8 @@ class GlobalHotkeyListener:
         self._callback = callback
         self._thread = None
         self._lock = threading.Lock()
+        self._last_triggered = {}
+        self._cooldown_ms = 150
         self._build_key_map()
     
     def _build_key_map(self):
@@ -184,6 +186,7 @@ class GlobalHotkeyListener:
         self.mappings = dict(mappings)
         with self._lock:
             self.grabbed_keys = {}
+        self._last_triggered.clear()
         self._build_key_map()
     
     def start(self):
@@ -242,15 +245,21 @@ class GlobalHotkeyListener:
                                         required_keys = set(codes)
                                         required_mods = set(mods)
                                         if required_keys <= active_keys and required_mods <= active_modifiers:
-                                            if trigger_key not in triggered_combos:
+                                            current_time = time.time() * 1000
+                                            last_time = self._last_triggered.get(trigger_key, 0)
+                                            if trigger_key not in triggered_combos and (current_time - last_time) > self._cooldown_ms:
                                                 triggered_combos.add(trigger_key)
+                                                self._last_triggered[trigger_key] = current_time
                                                 self.hotkey_triggered.emit(trigger_key)
                                                 if self._callback:
                                                     self._callback(trigger_key)
                                     else:
                                         if codes == event.code and set(mods) == active_modifiers:
-                                            if trigger_key not in triggered_combos:
+                                            current_time = time.time() * 1000
+                                            last_time = self._last_triggered.get(trigger_key, 0)
+                                            if trigger_key not in triggered_combos and (current_time - last_time) > self._cooldown_ms:
                                                 triggered_combos.add(trigger_key)
+                                                self._last_triggered[trigger_key] = current_time
                                                 self.hotkey_triggered.emit(trigger_key)
                                                 if self._callback:
                                                     self._callback(trigger_key)
@@ -340,10 +349,8 @@ class KeyboardSimulator:
     def send_key(self, key_name):
         """Send a key event using xdotool to the currently focused window"""
         window_id = self._get_focused_window()
-        if window_id:
-            subprocess.run(["xdotool", "key", "--window", window_id, key_name], capture_output=True)
-        else:
-            subprocess.run(["xdotool", "key", "--window", "focus", key_name], capture_output=True)
+        cmd = ["xdotool", "key", "--window", window_id or "focus", key_name]
+        subprocess.run(cmd, capture_output=True)
     
     def send_special_key(self, keysym):
         """Send a special key using its keysym value to the focused window"""
@@ -351,17 +358,50 @@ class KeyboardSimulator:
             key_name = self._keysym_to_keyname(keysym)
             if key_name:
                 window_id = self._get_focused_window()
-                if window_id:
-                    subprocess.run(["xdotool", "key", "--window", window_id, key_name], capture_output=True)
-                else:
-                    subprocess.run(["xdotool", "key", "--window", "focus", key_name], capture_output=True)
+                cmd = self._build_xdotool_command(window_id, key_name)
+                subprocess.run(cmd, capture_output=True)
         else:
             self._send_keycode_fallback(keysym)
+    
+    def _build_xdotool_command(self, window_id, key_name):
+        """Build xdotool command with proper window targeting"""
+        is_shift_key = key_name in ("ISO_Left_Tab", "Shift_L", "Shift_R")
+        
+        cmd = ["xdotool", "key"]
+        
+        if is_shift_key:
+            cmd.extend(["shift+" + key_name.replace("ISO_Left_Tab", "Tab")])
+        else:
+            cmd.append(key_name)
+        
+        if window_id:
+            cmd.extend(["--window", window_id])
+        else:
+            cmd.extend(["--window", "focus"])
+        
+        return cmd
+    
+    def _get_focused_window(self):
+        """Get the window ID of the currently focused window"""
+        if self.XDOTOOL_AVAILABLE:
+            try:
+                result = subprocess.run(
+                    ["xdotool", "getactivewindow"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                if result.returncode == 0:
+                    return result.stdout.strip()
+            except Exception:
+                pass
+        return None
     
     def _keysym_to_keyname(self, keysym):
         """Convert keysym to xdotool key name"""
         KEY_NAME_MAP = {
             XK.XK_Tab: "Tab",
+            XK.XK_ISO_Left_Tab: "ISO_Left_Tab",
             XK.XK_Return: "Return",
             XK.XK_space: "space",
             XK.XK_Escape: "Escape",
@@ -437,32 +477,20 @@ class KeyboardSimulator:
         
         if self.XDOTOOL_AVAILABLE:
             if char.isupper():
-                cmd = ["xdotool", "key", "shift+" + char.lower()]
-                if window_id:
-                    cmd.insert(2, "--window")
-                    cmd.insert(3, window_id)
+                cmd = ["xdotool", "key", "--window", window_id or "focus", "shift+" + char.lower()]
                 subprocess.run(cmd, capture_output=True)
             elif char.islower():
-                cmd = ["xdotool", "type", char]
-                if window_id:
-                    cmd.insert(2, "--window")
-                    cmd.insert(3, window_id)
+                cmd = ["xdotool", "type", "--window", window_id or "focus", char]
                 subprocess.run(cmd, capture_output=True)
             else:
                 keysym = XK.string_to_keysym(char)
                 if keysym:
                     keyname = self._keysym_to_keyname(keysym)
                     if keyname:
-                        cmd = ["xdotool", "key", keyname]
-                        if window_id:
-                            cmd.insert(2, "--window")
-                            cmd.insert(3, window_id)
+                        cmd = ["xdotool", "key", "--window", window_id or "focus", keyname]
                         subprocess.run(cmd, capture_output=True)
                     else:
-                        cmd = ["xdotool", "type", char]
-                        if window_id:
-                            cmd.insert(2, "--window")
-                            cmd.insert(3, window_id)
+                        cmd = ["xdotool", "type", "--window", window_id or "focus", char]
                         subprocess.run(cmd, capture_output=True)
             return True
         else:

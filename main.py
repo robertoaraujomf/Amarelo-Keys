@@ -270,10 +270,12 @@ class KeySender:
         if xkey == "ISO_Left_Tab":
             xkey = "shift+Tab"
 
+        print(f"SEND: xkey={xkey}, special={xkey in KeySender.SPECIAL_KEYS}", flush=True)
         if xkey in KeySender.SPECIAL_KEYS:
-            subprocess.run(["xdotool", "key", xkey], capture_output=True)
+            result = subprocess.run(["xdotool", "key", xkey], capture_output=True, text=True)
         else:
-            subprocess.run(["xdotool", "type", "--", xkey], capture_output=True)
+            result = subprocess.run(["xdotool", "type", "--", xkey], capture_output=True, text=True)
+        print(f"SEND result: {result.returncode}", flush=True)
 
         return True
 
