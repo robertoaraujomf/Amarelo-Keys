@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0.0
+Type=Application
+Name=Amarelo Keys
+GenericName=Acessibilidade para teclas defeituosas
+Comment=Mapeie teclas defeituosas para atalhos personalizados
+Exec=bash -c "PYTHONPATH=$HOME/.local/share/amarelo-keys python3 -m amarelo_keys --gui"
+Icon=amarelo-keys
+Terminal=false
+Categories=Utility;Accessibility;System;Settings;
+Keywords=keyboard;keys;remap;accessibility;defective;
+StartupNotify=true
