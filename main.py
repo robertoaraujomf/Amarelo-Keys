@@ -619,21 +619,30 @@ class ConfigWindow(QMainWindow):
 
     def update_previous_window(self):
         try:
-            self._previous_window = subprocess.run(
+            result = subprocess.run(
                 ["xdotool", "getactivewindow"], 
-                capture_output=True, text=True
-            ).stdout.strip()
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                self._previous_window = result.stdout.strip()
+            else:
+                self._previous_window = None
         except:
             self._previous_window = None
 
     def show_selection_window(self):
         print("DEBUG: show_selection_window called", flush=True)
         if not self.selection_window:
-            self.selection_window = SelectionWindow(self.selected_items, self.key_sender, self)
+            self.selection_window = SelectionWindow(
+                self.selected_items, self.key_sender, self, self._previous_window
+            )
             self.selection_window.closed.connect(self.on_selection_closed)
             if self.hotkey_listener:
                 self.hotkey_listener.key_pressed.connect(self.selection_window.on_global_key_pressed)
                 self.hotkey_listener.set_overlay_active(True)
+        else:
+            # Update the previous window in case it changed
+            self.selection_window.previous_window = self._previous_window
         self.selection_window.show()
 
     def on_selection_closed(self):
@@ -672,11 +681,12 @@ class ConfigWindow(QMainWindow):
 class SelectionWindow(QWidget):
     closed = pyqtSignal()
 
-    def __init__(self, items, key_sender, parent_window=None):
+    def __init__(self, items, key_sender, parent_window=None, previous_window=None):
         super().__init__()
         self.items = items
         self.key_sender = key_sender
         self.parent_window = parent_window
+        self.previous_window = previous_window
         self.current_index = 0
 
         # Set window flags BEFORE any other operations
@@ -762,7 +772,10 @@ class SelectionWindow(QWidget):
             item = self.items[index]
             print(f"EXE: {item.name} xkey={item.xkey}")
             self.hide()
-            self.key_sender.send_key(item.xkey or item.name)
+            # Refocus the previous window before sending the key
+            if self.previous_window:
+                self.key_sender.focus_window(self.previous_window)
+            self.key_sender.send_key(item.xkey or item.name, self.previous_window)
 
     def keyPressEvent(self, event):
         key = event.key()
