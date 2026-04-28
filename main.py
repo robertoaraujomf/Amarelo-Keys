@@ -247,41 +247,72 @@ class KeySender:
     def __init__(self):
         self.last_window = None
 
-    def focus_previous_window(self):
+    def get_active_window(self):
+        """Get the currently active window ID"""
         try:
-            wid = subprocess.run(
-                ["xdotool", "getactivewindow"], 
-                capture_output=True, text=True
-            ).stdout.strip()
-            if wid and wid != str(self.last_window):
-                self.last_window = wid
-            if wid:
-                subprocess.run(["xdotool", "windowactivate", wid], capture_output=True)
-                time.sleep(0.1)
-                subprocess.run(["xdotool", "mousemove", wid, "100", "100", "click", "1"], capture_output=True)
-                time.sleep(0.1)
+            result = subprocess.run(
+                ["xdotool", "getactivewindow"],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
         except:
             pass
+        return None
 
-    def send_key(self, xkey, modifiers=None, window_id=None):
+    def focus_window(self, window_id):
+        """Focus a specific window by ID"""
+        if not window_id:
+            return False
+        try:
+            subprocess.run(["xdotool", "windowactivate", window_id], capture_output=True, timeout=2)
+            time.sleep(0.05)
+            return True
+        except:
+            return False
+
+    def send_key(self, xkey, window_id=None):
+        """Send a key to the specified window or active window"""
         if not xkey:
             return False
 
         if xkey == "ISO_Left_Tab":
             xkey = "shift+Tab"
 
-        print(f"SEND: xkey={xkey}, special={xkey in KeySender.SPECIAL_KEYS}", flush=True)
-        if xkey in KeySender.SPECIAL_KEYS:
-            result = subprocess.run(["xdotool", "key", xkey], capture_output=True, text=True)
-        else:
-            result = subprocess.run(["xdotool", "type", "--", xkey], capture_output=True, text=True)
-        print(f"SEND result: {result.returncode}", flush=True)
+        target_window = window_id or self.get_active_window()
 
-        return True
+        print(f"SEND: xkey={xkey}, window={target_window}", flush=True)
 
-    def send_string(self, char):
-        os.system(f"xdotool type -- '{char}'")
-        return True
+        try:
+            if xkey in KeySender.SPECIAL_KEYS:
+                if target_window:
+                    result = subprocess.run(
+                        ["xdotool", "key", "--window", target_window, xkey],
+                        capture_output=True, text=True, timeout=2
+                    )
+                else:
+                    result = subprocess.run(
+                        ["xdotool", "key", xkey],
+                        capture_output=True, text=True, timeout=2
+                    )
+            else:
+                # Use type for regular characters, ensure no newline
+                char_to_send = str(xkey).strip()
+                if target_window:
+                    result = subprocess.run(
+                        ["xdotool", "type", "--window", target_window, "--", char_to_send],
+                        capture_output=True, text=True, timeout=2
+                    )
+                else:
+                    result = subprocess.run(
+                        ["xdotool", "type", "--", char_to_send],
+                        capture_output=True, text=True, timeout=2
+                    )
+            print(f"SEND result: {result.returncode}", flush=True)
+            return True
+        except Exception as e:
+            print(f"SEND error: {e}", flush=True)
+            return False
 
 
 class GlobalHotkeyListener(QThread):
