@@ -1,0 +1,121 @@
+================================================================================
+RELATÓRIO DE DEPURAÇÃO - AMARELO KEYS v1.0.0
+Data: Thu Apr 16 2026 - Atualizado
+================================================================================
+
+SITUAÇÃO INICIAL:
+--------------------------------------------------------------------------------
+O aplicativo estava apresentando os seguintes problemas:
+1. Travamentos constantes
+2. Menu de contexto do tray não funcionava
+3. Teclas de atalho não eram reconhecidas ou não retornavam ações
+4. ModuleNotFoundError: No module named 'evdev'
+5. TypeError ao clicar em "Adicionar Mapeamento"
+6. Tray "Abrir Configurações" não abria a janela
+7. Combinações como "Insert+8" não eram interpretadas corretamente
+
+PROBLEMAS IDENTIFICADOS E CORRIGIDOS:
+--------------------------------------------------------------------------------
+
+1. MÓDULO EVDEV NÃO INSTALADO
+   Problema: ModuleNotFoundError: No module named 'evdev'
+   Correção: Instalado python3-evdev via apt/pkexec
+
+2. BUG NO SettingsDialog - PARÂMETROS INVERTIDOS
+   Localização: MainWindow._add_mapping() linha 930
+   Problema: Passava self (MainWindow) como segundo parâmetro quando deveria
+             ser edit_mapping=None, parent=self
+   Erro: TypeError: cannot unpack non-iterable MainWindow object
+   Correção: dialog = SettingsDialog(list(self.mappings.keys()), edit_mapping=None, parent=self)
+
+3. TRAY "ABRIR CONFIGURAÇÕES" NÃO FUNCIONAVA
+   Localização: MainWindow._open_settings()
+   Problema: A janela estava sendo mostrada mas não ativada corretamente
+   Correção: Adicionado processEvents() e verificações melhoradas
+
+4. MAPEAMENTO INCORRETO DE COMBINAÇÕES DE TECLAS
+   Localização: GlobalHotkeyListener._build_key_map() e _run()
+   Problema: O código tratava "Insert+8" como "8" com modificador "Insert",
+             mas Insert não era reconhecido como modificador padrão.
+   Erro: Insert+8 era mapeado para código 9 (tecla 8) ao invés de [110, 9]
+   Correção: Reescrito o sistema para suportar múltiplas teclas:
+   - Nova estrutura: grabbed_keys[trigger] = ([lista de códigos], [modificadores])
+   - Loop de eventos agora verifica se TODAS as teclas necessárias estão
+     pressionadas simultaneamente
+   - Adicionado tracking de active_keys (set de teclas pressionadas)
+
+5. MÉTODOS DUPLICADOS REMOVIDOS
+   Localização: GlobalHotkeyListener
+   Problema: stop(), wait(), isRunning() e update_mappings() estavam duplicados
+
+6. COMUNICAÇÃO THREAD-SAFE IMPLEMENTADA
+   Localização: GlobalHotkeyListener e MainWindow
+   Problema: Callback era chamado diretamente da thread do evdev
+   Correção: Adicionados sinais pyqtSignal para comunicação thread-safe
+
+7. ARQUIVO DE CONFIGURAÇÃO PARA ROOT
+   Problema: Quando rodando como root, o app procura config em /root/.config
+   Correção: O app agora sincroniza configurações para o diretório do root
+
+ARQUIVO DE CONFIGURAÇÃO ATUAL:
+--------------------------------------------------------------------------------
+Localização: ~/.config/amarelo-keys/mappings.json
+Conteúdo:
+{
+  "mappings": {
+    "Insert+8": "Letra: p",
+    "Insert+9": "Letra: q"
+  }
+}
+
+Mapeamentos testados e funcionando:
+- Insert+8 → Letra: p (códigos [110, 9])
+- Insert+9 → Letra: q (códigos [110, 10])
+
+RESULTADO DOS TESTES:
+--------------------------------------------------------------------------------
+✓ App inicia corretamente
+✓ Mapeamentos são carregados do arquivo JSON
+✓ Listener está ativo e monitorando teclas
+✓ Listener detecta combinações de teclas (Insert + 8)
+✓ Envio de caracteres para app em primeiro plano funciona
+✓ Menu do tray está funcional
+✓ Botão "Adicionar Mapeamento" funciona sem erros
+
+INSTRUÇÕES DE USO:
+--------------------------------------------------------------------------------
+1. Execute o aplicativo com permissões de root:
+   sudo python3 /home/roberto/Projetos/Amarelo-Keys/amarelo_keys.py
+
+2. Para adicionar mapeamentos:
+   - Clique em "+ Adicionar Mapeamento"
+   - Selecione o modificador (se houver)
+   - Selecione a tecla de gatilho
+   - Selecione a ação (caractere ou função)
+   - Clique OK
+
+3. Teste os hotkeys:
+   - Pressione a combinação configurada
+   - O caractere/função deve ser digitado no app em primeiro plano
+
+4. Mapeamentos sugeridos (baixo risco de conflito):
+   - Insert+8 → Letra: p
+   - Insert+9 → Letra: q
+   - Insert+0 → Letra: e
+   - Delete+8 → Letra: r
+   - Home+8 → Letra: t
+   - End+8 → Letra: y
+   - Ctrl+Home → Home
+   - Ctrl+End → End
+
+NOTAS:
+--------------------------------------------------------------------------------
+- O app requer permissões de root para capturar eventos do teclado via evdev
+- O arquivo de configuração é sincronizado automaticamente para /root/.config
+- O tray icon permite acesso rápido às configurações sem abrir a janela
+- As teclas Insert, Delete, Home, End são boas opções como gatilho por não
+  entrarem em conflito com atalhos comuns de outros aplicativos
+
+================================================================================
+FIM DO RELATÓRIO
+================================================================================

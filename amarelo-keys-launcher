@@ -1,0 +1,10 @@
+#!/bin/bash
+#
+# Wrapper para Amarelo Keys
+# Executa xhost primeiro, depois inicia o aplicativo
+#
+
+xhost +SI:localuser:root 2>/dev/null || pkexec xhost +SI:localuser:root 2>/dev/null || true
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+python3 "$SCRIPT_DIR/amarelo_keys.py"

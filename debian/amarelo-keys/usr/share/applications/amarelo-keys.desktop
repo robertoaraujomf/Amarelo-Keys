@@ -1,0 +1,15 @@
+[Desktop Entry]
+Version=1.0.0
+Type=Application
+Name=Amarelo Keys
+GenericName=Acessibilidade para teclas defeituosas
+Comment=Mapeie teclas defeituosas para atalhos personalizados
+Exec=python3 /usr/share/amarelo-keys/amarelo_keys.py
+Icon=/usr/share/icons/hicolor/256x256/apps/amarelo-keys.png
+Terminal=false
+Categories=Utility;Accessibility;System;Settings;
+Keywords=keyboard;keys;remap;accessibility;defective;broken;map;
+StartupNotify=true
+StartupWMClass=amarelo-keys
+MimeType=
+X-AppStream-Ignore=True

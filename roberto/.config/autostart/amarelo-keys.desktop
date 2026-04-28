@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Amarelo Keys
+Exec=python3 /home/roberto/Projetos/Amarelo-Keys/main.py --minimized
+Hidden=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

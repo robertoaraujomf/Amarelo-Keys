@@ -1,0 +1,48 @@
+#!/bin/bash
+# Post-installation script for Amarelo Keys
+
+set -e
+
+echo "Configurando Amarelo Keys..."
+
+# Create config directory
+mkdir -p "$HOME/.config/amarelo-keys"
+
+# Update desktop database
+if command -v update-desktop-database &> /dev/null; then
+    update-desktop-database -q /usr/share/applications 2>/dev/null || true
+fi
+
+# Update icon cache
+if command -v gtk-update-icon-cache &> /dev/null; then
+    gtk-update-icon-cache -f -t /usr/share/pixmaps 2>/dev/null || true
+fi
+
+# Configure xhost permissions (optional, may fail without display)
+if [ -n "$DISPLAY" ]; then
+    xhost +SI:localuser:root 2>/dev/null || true
+fi
+
+# Create autostart for the installing user
+if [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    mkdir -p "$USER_HOME/.config/autostart"
+    cat > "$USER_HOME/.config/autostart/amarelo-keys.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Amarelo Keys
+Comment=Acessibilidade para teclas defeituosas
+Exec=python3 /usr/share/amarelo-keys/amarelo_keys.py
+Icon=amarelo-keys
+Terminal=false
+X-GNOME-Autostart-enabled=true
+EOF
+    chown "$SUDO_USER:$SUDO_USER" "$USER_HOME/.config/autostart/amarelo-keys.desktop"
+fi
+
+# Set permissions
+chmod +x /usr/share/amarelo-keys/amarelo_keys.py 2>/dev/null || true
+chmod +x /usr/share/amarelo-keys/installer.py 2>/dev/null || true
+
+echo "Amarelo Keys instalado com sucesso!"
+echo "Você pode iniciá-lo pelo menu de aplicativos ou procurar por 'Amarelo Keys'."

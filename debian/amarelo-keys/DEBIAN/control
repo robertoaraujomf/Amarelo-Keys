@@ -1,0 +1,15 @@
+Package: amarelo-keys
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.8), python3-pyqt5, python3-xlib
+Recommends: 
+Suggests: 
+Maintainer: Amarelo Keys Team <amarelo@keys.dev>
+Description: Acessibilidade para teclas defeituosas
+ Um utilitário de acessibilidade para Linux que permite mapear
+ teclas defeituosas para atalhos personalizados que funcionam
+ globalmente em todo o sistema.
+Homepage: https://github.com/amarelo-keys
+Icon: /usr/share/pixmaps/amarelo-keys.svg

@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+update-desktop-database -q /usr/share/applications 2>/dev/null || true
+if [ -n "$DISPLAY" ]; then
+    xhost +SI:localuser:root 2>/dev/null || true
+fi
+if [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    mkdir -p "$USER_HOME/.config/autostart"
+    cat > "$USER_HOME/.config/autostart/amarelo-keys.desktop" << 'INNER'
+[Desktop Entry]
+Type=Application
+Name=Amarelo Keys
+Exec=python3 /usr/share/amarelo-keys/main.py
+Icon=amarelo-keys
+X-GNOME-Autostart-enabled=true
+INNER
+    chown "$SUDO_USER:$SUDO_USER" "$USER_HOME/.config/autostart/amarelo-keys.desktop"
+fi
+chmod +x /usr/share/amarelo-keys/*.py 2>/dev/null || true
+echo "Amarelo Keys instalado com sucesso!"

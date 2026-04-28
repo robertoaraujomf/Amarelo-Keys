@@ -5,7 +5,7 @@ Name=Amarelo Keys
 GenericName=Acessibilidade para teclas defeituosas
 Comment=Mapeie teclas defeituosas para atalhos personalizados
 Exec=bash -c "PYTHONPATH=$HOME/.local/share/amarelo-keys python3 -m amarelo_keys --gui"
-Icon=amarelo-keys
+Icon=/usr/share/icons/hicolor/256x256/apps/amarelo-keys.png
 Terminal=false
 Categories=Utility;Accessibility;System;Settings;
 Keywords=keyboard;keys;remap;accessibility;defective;
