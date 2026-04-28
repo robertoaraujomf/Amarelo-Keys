@@ -373,16 +373,6 @@ class ConfigWindow(QMainWindow):
         self.hotkey_listener = None
         self.selection_window = None
         self.tray = None
-
-
-class ConfigWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.selected_items = []
-        self.key_sender = KeySender()
-        self.hotkey_listener = None
-        self.selection_window = None
-        self.tray = None
         self.load_config()
         self.init_ui()
         # Tray desabilitado - o daemon já tem seu próprio tray icon
