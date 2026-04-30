@@ -292,6 +292,7 @@ class GlobalHotkeyListener(QThread):
         self.kbd = None
         self.overlay_active = False
         self._last_insert_time = 0
+        self._last_key_time = 0  # To ignore repeated keys in overlay
 
     def stop(self):
         self.running = False
@@ -337,21 +338,31 @@ class GlobalHotkeyListener(QThread):
                 try:
                     for event in kbd.read():
                         if event.type == evdev.ecodes.EV_KEY:
-                            if event.value == 1:
+                            if event.value == 1:  # Key press
+                                now = time.time()
+                                
                                 if event.code == ecodes.KEY_INSERT:
-                                    now = time.time()
                                     if now - self._last_insert_time < 0.5:
                                         continue
                                     self._last_insert_time = now
                                     print("DEBUG: Insert key detected!", flush=True)
                                     self.insert_pressed.emit()
-                                elif self.overlay_active and event.code in (
-                                        ecodes.KEY_UP,
-                                        ecodes.KEY_DOWN,
-                                        ecodes.KEY_ENTER,
-                                        ecodes.KEY_KPENTER,
-                                        ecodes.KEY_ESC):
-                                    self.key_pressed.emit(event.code)
+                                
+                                elif self.overlay_active:
+                                    # When overlay is active, grab keyboard to prevent key events
+                                    # from reaching other windows
+                                    if event.code in (ecodes.KEY_UP, ecodes.KEY_DOWN,
+                                                   ecodes.KEY_ENTER, ecodes.KEY_KPENTER,
+                                                   ecodes.KEY_ESC):
+                                        self.key_pressed.emit(event.code)
+                                        # Small delay to prevent double-triggering
+                                        time.sleep(0.05)
+                                
+                    # If overlay is active, do a more frequent check
+                    if self.overlay_active:
+                        time.sleep(0.02)
+                    else:
+                        time.sleep(0.05)
                 except (BlockingIOError, OSError):
                     time.sleep(0.05)
                 except Exception as e:
