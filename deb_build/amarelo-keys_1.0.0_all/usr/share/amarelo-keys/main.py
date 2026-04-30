@@ -40,11 +40,9 @@ except ImportError:
 APP_NAME = "Amarelo Keys"
 VERSION = "1.0.0"
 
-_user = os.environ.get("SUDO_USER") or os.environ.get("USER", "root")
-USER_HOME = Path(f"/home/{_user}") if _user != "root" else Path("/home/roberto")
-CONFIG_DIR = USER_HOME / ".config" / "amarelo-keys"
+CONFIG_DIR = Path.home() / ".config" / "amarelo-keys"
 CONFIG_FILE = CONFIG_DIR / "config.json"
-AUTOSTART_FILE = USER_HOME / ".config" / "autostart" / "amarelo-keys.desktop"
+AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "amarelo-keys.desktop"
 
 
 class KeySymbol:
@@ -80,7 +78,7 @@ class KeySymbol:
 
 AVAILABLE_KEYS = [
     KeySymbol("Tab", "Tab", keycode=23, xkey="Tab"),
-    KeySymbol("BackTab", "Shift+Tab", keycode=23, modifiers=["Shift"], xkey="ISO_Left_Tab"),
+    KeySymbol("BackTab", "Shift+Tab", keycode=23, modifiers=["Shift"], xkey="shift+Tab"),
     KeySymbol("Enter", "Enter", keycode=36, xkey="Return"),
     KeySymbol("Escape", "Esc", keycode=9, xkey="Escape"),
     KeySymbol("Space", "Espaço", keycode=65, xkey="space"),
@@ -108,6 +106,7 @@ AVAILABLE_KEYS = [
     KeySymbol("F12", "F12", keycode=96, xkey="F12"),
 ]
 
+# Special characters - only symbols, no accented chars, no uppercase distinction
 SPECIAL_CHARS = [
     KeySymbol("~", "~ Til"),
     KeySymbol("`", "` Acento"),
@@ -132,7 +131,7 @@ SPECIAL_CHARS = [
     KeySymbol("\\", "\\ Barra invertida"),
     KeySymbol(";", "; Ponto e vírgula"),
     KeySymbol(":", ": Dois pontos"),
-    KeySymbol("'", "' Aspas"),
+    KeySymbol("'", "' Aspas simples"),
     KeySymbol("\"", "\" Aspas duplas"),
     KeySymbol(",", ", Vírgula"),
     KeySymbol(".", ". Ponto"),
@@ -141,100 +140,64 @@ SPECIAL_CHARS = [
     KeySymbol("<", "< Menor"),
     KeySymbol(">", "> Maior"),
     KeySymbol("_", "_ Underline"),
+    KeySymbol(" ", "Espaço"),
 ]
 
-ACENTOS = [
-    KeySymbol("á", "á a"),
-    KeySymbol("à", "à a"),
-    KeySymbol("ã", "ã a"),
-    KeySymbol("â", "â a"),
-    KeySymbol("Á", "Á A"),
-    KeySymbol("À", "À A"),
-    KeySymbol("Ã", "Ã A"),
-    KeySymbol("Â", "Â A"),
-    KeySymbol("é", "é e"),
-    KeySymbol("è", "è e"),
-    KeySymbol("ê", "ê e"),
-    KeySymbol("É", "É E"),
-    KeySymbol("È", "È E"),
-    KeySymbol("Ê", "Ê E"),
-    KeySymbol("í", "í i"),
-    KeySymbol("ì", "ì i"),
-    KeySymbol("î", "î i"),
-    KeySymbol("Í", "Í I"),
-    KeySymbol("Ì", "Ì I"),
-    KeySymbol("Î", "Î I"),
-    KeySymbol("ó", "ó o"),
-    KeySymbol("ò", "ò o"),
-    KeySymbol("õ", "õ o"),
-    KeySymbol("ô", "ô o"),
-    KeySymbol("Ó", "Ó O"),
-    KeySymbol("Ò", "Ò O"),
-    KeySymbol("Õ", "Õ O"),
-    KeySymbol("Ô", "Ô O"),
-    KeySymbol("ú", "ú u"),
-    KeySymbol("ù", "ù u"),
-    KeySymbol("û", "û u"),
-    KeySymbol("Ú", "Ú U"),
-    KeySymbol("Ù", "Ù U"),
-    KeySymbol("Û", "Û U"),
-    KeySymbol("ç", "ç c"),
-    KeySymbol("Ç", "Ç C"),
-    KeySymbol("€", "€ Euro"),
-    KeySymbol("£", "£ Libra"),
-    KeySymbol("°", "° Grau"),
+# Only lowercase consonants - uppercase handled by Shift modifier
+CONSONANTS = [
+    KeySymbol("b", "b"),
+    KeySymbol("c", "c"),
+    KeySymbol("d", "d"),
+    KeySymbol("f", "f"),
+    KeySymbol("g", "g"),
+    KeySymbol("h", "h"),
+    KeySymbol("j", "j"),
+    KeySymbol("k", "k"),
+    KeySymbol("l", "l"),
+    KeySymbol("m", "m"),
+    KeySymbol("n", "n"),
+    KeySymbol("p", "p"),
+    KeySymbol("q", "q"),
+    KeySymbol("r", "r"),
+    KeySymbol("s", "s"),
+    KeySymbol("t", "t"),
+    KeySymbol("v", "v"),
+    KeySymbol("w", "w"),
+    KeySymbol("x", "x"),
+    KeySymbol("z", "z"),
 ]
 
-CONSOANTS = [
-    KeySymbol("b", "b Bê"),
-    KeySymbol("c", "c Cê"),
-    KeySymbol("d", "d Dê"),
-    KeySymbol("f", "f Efe"),
-    KeySymbol("g", "g Guê"),
-    KeySymbol("h", "h Agá"),
-    KeySymbol("j", "j Jelota"),
-    KeySymbol("k", "k Cá"),
-    KeySymbol("l", "l Ele"),
-    KeySymbol("m", "m Emme"),
-    KeySymbol("n", "n Enne"),
-    KeySymbol("p", "p Pê"),
-    KeySymbol("q", "q Queue"),
-    KeySymbol("r", "r Ere"),
-    KeySymbol("s", "s Ese"),
-    KeySymbol("t", "t Tê"),
-    KeySymbol("v", "v Ve"),
-    KeySymbol("w", "w Duplo vé"),
-    KeySymbol("x", "x Éris"),
-    KeySymbol("z", "z Zê"),
-    KeySymbol("B", "B Bê maiúsculo"),
-    KeySymbol("C", "C Cê maiúsculo"),
-    KeySymbol("D", "D Dê maiúsculo"),
-    KeySymbol("F", "F Efe maiúsculo"),
-    KeySymbol("G", "G Guê maiúsculo"),
-    KeySymbol("H", "H Agá maiúsculo"),
-    KeySymbol("J", "J Jelota maiúsculo"),
-    KeySymbol("K", "K Cá maiúsculo"),
-    KeySymbol("L", "L Ele maiúsculo"),
-    KeySymbol("M", "M Emme maiúsculo"),
-    KeySymbol("N", "N Enne maiúsculo"),
-    KeySymbol("P", "P Pê maiúsculo"),
-    KeySymbol("Q", "Q Queue maiúsculo"),
-    KeySymbol("R", "R Ere maiúsculo"),
-    KeySymbol("S", "S Ese maiúsculo"),
-    KeySymbol("T", "T Tê maiúsculo"),
-    KeySymbol("V", "V Ve maiúsculo"),
-    KeySymbol("W", "W Duplo vé maiúsculo"),
-    KeySymbol("X", "X Éris maiúsculo"),
-    KeySymbol("Z", "Z Zê maiúsculo"),
+VOWELS = [
+    KeySymbol("a", "a"),
+    KeySymbol("e", "e"),
+    KeySymbol("i", "i"),
+    KeySymbol("o", "o"),
+    KeySymbol("u", "u"),
+]
+
+NUMBERS = [
+    KeySymbol("0", "0"),
+    KeySymbol("1", "1"),
+    KeySymbol("2", "2"),
+    KeySymbol("3", "3"),
+    KeySymbol("4", "4"),
+    KeySymbol("5", "5"),
+    KeySymbol("6", "6"),
+    KeySymbol("7", "7"),
+    KeySymbol("8", "8"),
+    KeySymbol("9", "9"),
 ]
 
 
 def get_all_available():
     all_items = []
-    all_items.extend(ACENTOS)
-    all_items.extend(CONSOANTS)
-    all_items.extend(SPECIAL_CHARS)
     all_items.extend(AVAILABLE_KEYS)
+    all_items.extend(SPECIAL_CHARS)
+    all_items.extend(NUMBERS)
+    all_items.extend(VOWELS)
+    all_items.extend(CONSONANTS)
+    # Sort by display name for cleaner presentation
+    all_items.sort(key=lambda x: x.display.lower())
     return all_items
 
 
@@ -276,7 +239,8 @@ class KeySender:
         if not xkey:
             return False
 
-        if xkey == "ISO_Left_Tab":
+        # Normalize xkey for special handling
+        if xkey == "ISO_Left_Tab" or xkey == "shift+Tab":
             xkey = "shift+Tab"
 
         target_window = window_id or self.get_active_window()
@@ -284,30 +248,33 @@ class KeySender:
         print(f"SEND: xkey={xkey}, window={target_window}", flush=True)
 
         try:
-            if xkey in KeySender.SPECIAL_KEYS:
+            if target_window:
+                self.focus_window(target_window)
+                time.sleep(0.1)
+
+            # Keys that should be sent with xdotool key (not type)
+            # Tab, shift+Tab, and all function keys are special
+            is_special = (xkey in ["Tab", "shift+Tab", "Return", "Enter", "Escape", "BackSpace",
+                                   "Delete", "Home", "End", "Prior", "Next", "Left", "Right",
+                                   "Up", "Down", "Insert", "Pause", "Print"] or
+                          (len(xkey) >= 2 and xkey.startswith("F") and xkey[1:].isdigit()) or
+                          (len(xkey) >= 3 and xkey.startswith("KP_") and xkey[3:].isdigit()))
+
+            if is_special:
+                # Send as key press using xdotool key
+                cmd = ["xdotool", "key", "--clearmodifiers"]
                 if target_window:
-                    result = subprocess.run(
-                        ["xdotool", "key", "--window", target_window, xkey],
-                        capture_output=True, text=True, timeout=2
-                    )
-                else:
-                    result = subprocess.run(
-                        ["xdotool", "key", xkey],
-                        capture_output=True, text=True, timeout=2
-                    )
+                    cmd.extend(["--window", target_window])
+                cmd.append(xkey)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
             else:
-                # Use type for regular characters, ensure no newline
-                char_to_send = str(xkey).strip()
+                # Use type for regular characters
+                char_to_send = str(xkey).replace('\n', '').replace('\r', '')
+                cmd = ["xdotool", "type", "--clearmodifiers"]
                 if target_window:
-                    result = subprocess.run(
-                        ["xdotool", "type", "--window", target_window, "--", char_to_send],
-                        capture_output=True, text=True, timeout=2
-                    )
-                else:
-                    result = subprocess.run(
-                        ["xdotool", "type", "--", char_to_send],
-                        capture_output=True, text=True, timeout=2
-                    )
+                    cmd.extend(["--window", target_window])
+                cmd.extend(["--", char_to_send])
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
             print(f"SEND result: {result.returncode}", flush=True)
             return True
         except Exception as e:
@@ -324,14 +291,13 @@ class GlobalHotkeyListener(QThread):
         self.running = True
         self.kbd = None
         self.overlay_active = False
-        self._insert_lock = False
+        self._last_insert_time = 0
 
     def stop(self):
         self.running = False
 
     def set_overlay_active(self, active):
         self.overlay_active = active
-        self._insert_lock = active
 
     def run(self):
         print("DEBUG: Listener thread started", flush=True)
@@ -373,13 +339,12 @@ class GlobalHotkeyListener(QThread):
                         if event.type == evdev.ecodes.EV_KEY:
                             if event.value == 1:
                                 if event.code == ecodes.KEY_INSERT:
-                                    if self._insert_lock:
+                                    now = time.time()
+                                    if now - self._last_insert_time < 0.5:
                                         continue
+                                    self._last_insert_time = now
                                     print("DEBUG: Insert key detected!", flush=True)
                                     self.insert_pressed.emit()
-                                    self._insert_lock = True
-                                    time.sleep(0.3)
-                                    self._insert_lock = False
                                 elif self.overlay_active and event.code in (
                                         ecodes.KEY_UP,
                                         ecodes.KEY_DOWN,
@@ -406,9 +371,8 @@ class ConfigWindow(QMainWindow):
         self.tray = None
         self.load_config()
         self.init_ui()
-        # Tray desabilitado - o daemon já tem seu próprio tray icon
-        # self.setup_tray()
-        # self.setup_autostart()
+        self.setup_tray()
+        self.setup_autostart()
 
     def init_ui(self):
         self.setWindowTitle(f"{APP_NAME} - Configuração")
@@ -533,20 +497,41 @@ class ConfigWindow(QMainWindow):
         self.tray.show()
         self.tray.activated.connect(self.on_tray_activate)
 
+    def setup_tray(self):
+        self.tray = QSystemTrayIcon(self)
+        self.tray.setToolTip(APP_NAME)
+
+        icon_path = Path(__file__).parent / "icons" / "tray-icon.png"
+        if icon_path.exists():
+            self.tray.setIcon(QIcon(str(icon_path)))
+        else:
+            pixmap = QPixmap(64, 64)
+            pixmap.fill(QColor("#FFC107"))
+            self.tray.setIcon(QIcon(pixmap))
+
+        menu = QMenu()
+        menu.addAction("Abrir Configuração", self.show_config)
+        menu.addSeparator()
+        menu.addAction("Sair", self.quit_app)
+        self.tray.setContextMenu(menu)
+
+        self.tray.show()
+        self.tray.activated.connect(self.on_tray_activate)
+
     def setup_autostart(self):
         app_path = Path(__file__).absolute()
-        if not AUTOSTART_FILE.parent.exists():
-            AUTOSTART_FILE.parent.mkdir(parents=True)
-        if not AUTOSTART_FILE.exists():
-            AUTOSTART_FILE.write_text(
-                f"[Desktop Entry]\n"
-                f"Type=Application\n"
-                f"Name={APP_NAME}\n"
-                f"Exec=python3 {app_path} --minimized\n"
-                f"Hidden=false\n"
-                f"NoDisplay=true\n"
-                f"X-GNOME-Autostart-enabled=true\n"
-            )
+        AUTOSTART_FILE.parent.mkdir(parents=True, exist_ok=True)
+        AUTOSTART_FILE.write_text(
+            f"[Desktop Entry]\n"
+            f"Type=Application\n"
+            f"Name={APP_NAME}\n"
+            f"Exec={sys.executable} {app_path} --minimized\n"
+            f"Hidden=false\n"
+            f"NoDisplay=false\n"
+            f"X-GNOME-Autostart-enabled=true\n"
+            f"Comment=Virtual keyboard for Linux\n"
+        )
+        print(f"DEBUG: Autostart configured: {AUTOSTART_FILE}", flush=True)
 
     def load_config(self):
         if CONFIG_FILE.exists():
@@ -607,7 +592,7 @@ class ConfigWindow(QMainWindow):
     def start_hotkey_listener(self):
         if self.hotkey_listener is None:
             self.hotkey_listener = GlobalHotkeyListener()
-            self.hotkey_listener.insert_pressed.connect(self.toggle_selection_window)
+            self.hotkey_listener.insert_pressed.connect(self.toggle_selection_window, type=Qt.QueuedConnection)
             self.hotkey_listener.start()
 
     def toggle_selection_window(self):
@@ -618,41 +603,32 @@ class ConfigWindow(QMainWindow):
             self.on_selection_closed()
         else:
             print("DEBUG: Showing new selection window", flush=True)
-            self.update_previous_window()
             self.show_selection_window()
-
-    def update_previous_window(self):
-        try:
-            result = subprocess.run(
-                ["xdotool", "getactivewindow"], 
-                capture_output=True, text=True, timeout=2
-            )
-            if result.returncode == 0:
-                self._previous_window = result.stdout.strip()
-            else:
-                self._previous_window = None
-        except:
-            self._previous_window = None
 
     def show_selection_window(self):
         print("DEBUG: show_selection_window called", flush=True)
-        if not self.selection_window:
-            self.selection_window = SelectionWindow(
-                self.selected_items, self.key_sender, self, self._previous_window
-            )
-            self.selection_window.closed.connect(self.on_selection_closed)
-            if self.hotkey_listener:
-                self.hotkey_listener.key_pressed.connect(self.selection_window.on_global_key_pressed)
-                self.hotkey_listener.set_overlay_active(True)
-        else:
-            # Update the previous window in case it changed
-            self.selection_window.previous_window = self._previous_window
+        # Always recreate the selection window to ensure fresh state
+        if self.selection_window:
+            try:
+                self.selection_window.closed.disconnect(self.on_selection_closed)
+            except TypeError:
+                pass
+            self.selection_window.deleteLater()
+            self.selection_window = None
+        
+        self.selection_window = SelectionWindow(
+            self.selected_items, self.key_sender, self
+        )
+        self.selection_window.closed.connect(self.on_selection_closed)
+        if self.hotkey_listener:
+            self.hotkey_listener.key_pressed.connect(self.selection_window.on_global_key_pressed)
+            self.hotkey_listener.set_overlay_active(True)
         self.selection_window.show()
 
     def on_selection_closed(self):
-        if self.hotkey_listener and self.selection_window:
+        if self.hotkey_listener:
             try:
-                self.hotkey_listener.key_pressed.disconnect(self.selection_window.on_global_key_pressed)
+                self.hotkey_listener.key_pressed.disconnect()
             except TypeError:
                 pass
             # Unset flag to indicate overlay is closed
@@ -673,8 +649,6 @@ class ConfigWindow(QMainWindow):
     def quit_app(self):
         if self.hotkey_listener:
             self.hotkey_listener.stop()
-        if hasattr(self, 'polling_timer'):
-            self.polling_timer.stop()
         QApplication.quit()
 
     def closeEvent(self, event):
@@ -685,12 +659,11 @@ class ConfigWindow(QMainWindow):
 class SelectionWindow(QWidget):
     closed = pyqtSignal()
 
-    def __init__(self, items, key_sender, parent_window=None, previous_window=None):
+    def __init__(self, items, key_sender, parent_window=None):
         super().__init__()
         self.items = items
         self.key_sender = key_sender
         self.parent_window = parent_window
-        self.previous_window = previous_window
         self.current_index = 0
 
         # Set window flags BEFORE any other operations
@@ -776,10 +749,10 @@ class SelectionWindow(QWidget):
             item = self.items[index]
             print(f"EXE: {item.name} xkey={item.xkey}")
             self.hide()
-            # Refocus the previous window before sending the key
-            if self.previous_window:
-                self.key_sender.focus_window(self.previous_window)
-            self.key_sender.send_key(item.xkey or item.name, self.previous_window)
+            time.sleep(0.15)  # Small delay for focus to return
+            # Don't pass window_id - let send_key get the active window
+            self.key_sender.send_key(item.xkey or item.name, None)
+            self.closed.emit()
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -821,7 +794,11 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     window = ConfigWindow()
-    window.hide()
+    # Check if --minimized flag is passed
+    if "--minimized" not in sys.argv:
+        window.show()
+    else:
+        window.hide()
     window.start_hotkey_listener()
 
     sys.exit(app.exec_())
