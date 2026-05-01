@@ -228,10 +228,15 @@ class KeySender:
         if not window_id:
             return False
         try:
-            subprocess.run(["xdotool", "windowactivate", window_id], capture_output=True, timeout=2)
-            time.sleep(0.05)
-            return True
-        except:
+            result = subprocess.run(
+                ["xdotool", "windowfocus", "--sync", window_id],
+                capture_output=True, text=True, timeout=2
+            )
+            print(f"FOCUS windowfocus: rc={result.returncode}", flush=True)
+            time.sleep(0.3)
+            return result.returncode == 0
+        except Exception as e:
+            print(f"FOCUS error: {e}", flush=True)
             return False
 
     def send_key(self, xkey, window_id=None):
@@ -239,7 +244,6 @@ class KeySender:
         if not xkey:
             return False
 
-        # Normalize xkey for special handling
         if xkey == "ISO_Left_Tab" or xkey == "shift+Tab":
             xkey = "shift+Tab"
 
@@ -248,12 +252,11 @@ class KeySender:
         print(f"SEND: xkey={xkey}, window={target_window}", flush=True)
 
         try:
+            # If we have a target window, focus it first
             if target_window:
                 self.focus_window(target_window)
-                time.sleep(0.1)
 
-            # Keys that should be sent with xdotool key (not type)
-            # Tab, shift+Tab, and all function keys are special
+            # Check if the key is a special key
             is_special = (xkey in ["Tab", "shift+Tab", "Return", "Enter", "Escape", "BackSpace",
                                    "Delete", "Home", "End", "Prior", "Next", "Left", "Right",
                                    "Up", "Down", "Insert", "Pause", "Print"] or
@@ -261,22 +264,19 @@ class KeySender:
                           (len(xkey) >= 3 and xkey.startswith("KP_") and xkey[3:].isdigit()))
 
             if is_special:
-                # Send as key press using xdotool key
-                cmd = ["xdotool", "key", "--clearmodifiers"]
-                if target_window:
-                    cmd.extend(["--window", target_window])
-                cmd.append(xkey)
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                cmd = ["xdotool", "key", "--clearmodifiers", "--delay", "50", xkey]
             else:
-                # Use type for regular characters
                 char_to_send = str(xkey).replace('\n', '').replace('\r', '')
-                cmd = ["xdotool", "type", "--clearmodifiers"]
-                if target_window:
-                    cmd.extend(["--window", target_window])
-                cmd.extend(["--", char_to_send])
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
-            print(f"SEND result: {result.returncode}", flush=True)
-            return True
+                cmd = ["xdotool", "type", "--clearmodifiers", "--delay", "50", "--", char_to_send]
+
+            print(f"SEND cmd: {' '.join(cmd)}", flush=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+            print(f"SEND result: rc={result.returncode}, stderr={result.stderr.strip()}", flush=True)
+            return result.returncode == 0
+        except Exception as e:
+            print(f"SEND error: {e}", flush=True)
+            return False
+            return result.returncode == 0
         except Exception as e:
             print(f"SEND error: {e}", flush=True)
             return False
@@ -292,12 +292,29 @@ class GlobalHotkeyListener(QThread):
         self.kbd = None
         self.overlay_active = False
         self._last_insert_time = 0
+        self._last_key_time = 0
+        self._keyboard_grabbed = False
+        self._grab_lock = threading.Lock()
 
     def stop(self):
         self.running = False
 
     def set_overlay_active(self, active):
-        self.overlay_active = active
+        with self._grab_lock:
+            self.overlay_active = active
+            # Also try to grab immediately from main thread for faster response
+            if self.kbd:
+                try:
+                    if active:
+                        self.kbd.grab()
+                        self._keyboard_grabbed = True
+                        print("DEBUG: Keyboard grabbed (from main thread)", flush=True)
+                    elif self._keyboard_grabbed:
+                        self.kbd.ungrab()
+                        self._keyboard_grabbed = False
+                        print("DEBUG: Keyboard ungrabbed (from main thread)", flush=True)
+                except Exception as e:
+                    print(f"DEBUG: immediate grab/ungrab error: {e}", flush=True)
 
     def run(self):
         print("DEBUG: Listener thread started", flush=True)
@@ -334,30 +351,67 @@ class GlobalHotkeyListener(QThread):
 
             print("DEBUG: Starting event loop...", flush=True)
             while self.running:
+                # Handle keyboard grab/ungrab based on overlay_active state
+                with self._grab_lock:
+                    should_grab = self.overlay_active
+                    already_grabbed = self._keyboard_grabbed
+
+                if should_grab and not already_grabbed:
+                    try:
+                        kbd.grab()
+                        with self._grab_lock:
+                            self._keyboard_grabbed = True
+                        print("DEBUG: Keyboard grabbed (in thread)", flush=True)
+                    except Exception as e:
+                        print(f"DEBUG: keyboard grab failed: {e}", flush=True)
+                elif not should_grab and already_grabbed:
+                    try:
+                        kbd.ungrab()
+                        with self._grab_lock:
+                            self._keyboard_grabbed = False
+                        print("DEBUG: Keyboard ungrabbed (in thread)", flush=True)
+                    except Exception as e:
+                        print(f"DEBUG: keyboard ungrab failed: {e}", flush=True)
+
                 try:
                     for event in kbd.read():
                         if event.type == evdev.ecodes.EV_KEY:
-                            if event.value == 1:
+                            if event.value == 1:  # Key press
+                                now = time.time()
+                                
                                 if event.code == ecodes.KEY_INSERT:
-                                    now = time.time()
                                     if now - self._last_insert_time < 0.5:
                                         continue
                                     self._last_insert_time = now
                                     print("DEBUG: Insert key detected!", flush=True)
                                     self.insert_pressed.emit()
-                                elif self.overlay_active and event.code in (
-                                        ecodes.KEY_UP,
-                                        ecodes.KEY_DOWN,
-                                        ecodes.KEY_ENTER,
-                                        ecodes.KEY_KPENTER,
-                                        ecodes.KEY_ESC):
-                                    self.key_pressed.emit(event.code)
+                                
+                                elif self.overlay_active:
+                                    if event.code in (ecodes.KEY_UP, ecodes.KEY_DOWN,
+                                                   ecodes.KEY_ENTER, ecodes.KEY_KPENTER,
+                                                   ecodes.KEY_ESC):
+                                        self.key_pressed.emit(event.code)
+                                        time.sleep(0.05)
+                                    # All other keys are consumed by the grab (not forwarded to X)
+
+                    if self.overlay_active:
+                        time.sleep(0.02)
+                    else:
+                        time.sleep(0.05)
                 except (BlockingIOError, OSError):
                     time.sleep(0.05)
                 except Exception as e:
                     print(f"Event loop error: {e}", flush=True)
                     time.sleep(0.1)
         finally:
+            try:
+                with self._grab_lock:
+                    was_grabbed = self._keyboard_grabbed
+                if was_grabbed:
+                    kbd.ungrab()
+                    print("DEBUG: Keyboard ungrabbed on thread exit", flush=True)
+            except:
+                pass
             print("DEBUG: Listener thread stopped", flush=True)
 
 
@@ -616,9 +670,14 @@ class ConfigWindow(QMainWindow):
             self.selection_window.deleteLater()
             self.selection_window = None
         
+        # Capture the active window BEFORE showing the overlay
+        active_window = self.key_sender.get_active_window()
+        print(f"DEBUG: Captured active window: {active_window}", flush=True)
+        
         self.selection_window = SelectionWindow(
             self.selected_items, self.key_sender, self
         )
+        self.selection_window.target_window = active_window
         self.selection_window.closed.connect(self.on_selection_closed)
         if self.hotkey_listener:
             self.hotkey_listener.key_pressed.connect(self.selection_window.on_global_key_pressed)
@@ -665,6 +724,7 @@ class SelectionWindow(QWidget):
         self.key_sender = key_sender
         self.parent_window = parent_window
         self.current_index = 0
+        self.target_window = None
 
         # Set window flags BEFORE any other operations
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus)
@@ -747,12 +807,21 @@ class SelectionWindow(QWidget):
     def execute_item(self, index):
         if 0 <= index < len(self.items):
             item = self.items[index]
-            print(f"EXE: {item.name} xkey={item.xkey}")
+            print(f"EXE: {item.name} xkey={item.xkey}, target_window={self.target_window}")
+            # Hide overlay first
             self.hide()
-            time.sleep(0.15)  # Small delay for focus to return
-            # Don't pass window_id - let send_key get the active window
-            self.key_sender.send_key(item.xkey or item.name, None)
-            self.closed.emit()
+            # Immediately restore focus to target window
+            if self.target_window:
+                print(f"RESTORE FOCUS: {self.target_window}", flush=True)
+                self.key_sender.focus_window(self.target_window)
+            # Use QTimer to delay the key send to prevent Enter key leak
+            QTimer.singleShot(500, lambda: self._send_key_after_hide(item))
+
+    def _send_key_after_hide(self, item):
+        """Send key after overlay is fully hidden to prevent key leak"""
+        print(f"SENDING KEY: {item.xkey or item.name}", flush=True)
+        self.key_sender.send_key(item.xkey or item.name, self.target_window)
+        self.closed.emit()
 
     def keyPressEvent(self, event):
         key = event.key()
