@@ -430,6 +430,12 @@ class ConfigWindow(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle(f"{APP_NAME} - Configuração")
+        # Set window icon
+        icon_path = Path(__file__).parent / "app_icon.png"
+        if not icon_path.exists():
+            icon_path = Path(__file__).parent / "icons" / "amarelo-keys.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.setMinimumSize(750, 550)
         self.setWindowFlags(Qt.Window)
         self.setStyleSheet("""
@@ -534,28 +540,10 @@ class ConfigWindow(QMainWindow):
         self.tray = QSystemTrayIcon(self)
         self.tray.setToolTip(APP_NAME)
 
-        icon_path = Path(__file__).parent / "icons" / "tray-icon.png"
-        if icon_path.exists():
-            self.tray.setIcon(QIcon(str(icon_path)))
-        else:
-            pixmap = QPixmap(64, 64)
-            pixmap.fill(QColor("#FFC107"))
-            self.tray.setIcon(QIcon(pixmap))
-
-        menu = QMenu()
-        menu.addAction("Abrir Configuração", self.show_config)
-        menu.addSeparator()
-        menu.addAction("Sair", self.quit_app)
-        self.tray.setContextMenu(menu)
-
-        self.tray.show()
-        self.tray.activated.connect(self.on_tray_activate)
-
-    def setup_tray(self):
-        self.tray = QSystemTrayIcon(self)
-        self.tray.setToolTip(APP_NAME)
-
-        icon_path = Path(__file__).parent / "icons" / "tray-icon.png"
+        # Try app_icon.png first (preserves transparency), then tray-icon.png
+        icon_path = Path(__file__).parent / "app_icon.png"
+        if not icon_path.exists():
+            icon_path = Path(__file__).parent / "icons" / "tray-icon.png"
         if icon_path.exists():
             self.tray.setIcon(QIcon(str(icon_path)))
         else:
