@@ -600,18 +600,21 @@ class ConfigWindow(QMainWindow):
         for item in all_avail:
             already = any(s.name == item.name for s in self.selected_items)
             if not already:
-                self.available_list.addItem(f"{item.display} ({item.name})")
+                list_item = QListWidgetItem(f"{item.display} ({item.name})")
+                list_item.setData(Qt.UserRole, item.name)
+                self.available_list.addItem(list_item)
 
     def update_selected_list(self):
         self.selected_list.clear()
         for item in self.selected_items:
-            self.selected_list.addItem(f"{item.display} ({item.name})")
+            list_item = QListWidgetItem(f"{item.display} ({item.name})")
+            list_item.setData(Qt.UserRole, item.name)
+            self.selected_list.addItem(list_item)
 
     def add_item(self):
         current = self.available_list.currentItem()
         if current:
-            text = current.text()
-            name = text.split(" (")[1].rstrip(")")
+            name = current.data(Qt.UserRole)
             all_avail = get_all_available()
             for item in all_avail:
                 if item.name == name and item not in self.selected_items:
@@ -623,8 +626,7 @@ class ConfigWindow(QMainWindow):
     def remove_item(self):
         current = self.selected_list.currentItem()
         if current:
-            text = current.text()
-            name = text.split(" (")[1].rstrip(")")
+            name = current.data(Qt.UserRole)
             self.selected_items = [s for s in self.selected_items if s.name != name]
             self.update_available_list()
             self.update_selected_list()
