@@ -1139,15 +1139,24 @@ class MainWindow(QMainWindow):
         
         open_action = QAction("Abrir Configurações", self)
         open_action.triggered.connect(self._open_settings)
-        
+
         restart_action = QAction("Reiniciar Listener", self)
         restart_action.triggered.connect(self._restart_listener)
-        
+
+        help_action = QAction("Ajuda", self)
+        help_action.triggered.connect(self._show_help)
+
+        about_action = QAction("Sobre", self)
+        about_action.triggered.connect(self._show_about)
+
         quit_action = QAction("Sair", self)
         quit_action.triggered.connect(self._quit_app)
-        
+
         tray_menu.addAction(open_action)
         tray_menu.addAction(restart_action)
+        tray_menu.addSeparator()
+        tray_menu.addAction(help_action)
+        tray_menu.addAction(about_action)
         tray_menu.addSeparator()
         tray_menu.addAction(quit_action)
         
@@ -1205,7 +1214,31 @@ class MainWindow(QMainWindow):
             self.hotkey_listener.wait()
         self.tray_icon.hide()
         QApplication.quit()
-    
+
+    def _show_help(self):
+        """Show help information"""
+        help_text = (
+            "<b>Como usar o Amarelo Keys:</b><br><br>"
+            "1. Abra as configurações pelo menu do tray ou clique duas vezes no ícone.<br>"
+            "2. Selecione a tecla defeituosa que deseja mapear.<br>"
+            "3. Escolha a tecla de substituição.<br>"
+            "4. Clique em 'Adicionar Mapeamento'.<br>"
+            "5. O mapeamento será ativado automaticamente.<br><br>"
+            "Use o tray icon para acessar rapidamente as configurações ou reiniciar o listener."
+        )
+        QMessageBox.information(self, "Ajuda - Amarelo Keys", help_text)
+
+    def _show_about(self):
+        """Show about information"""
+        about_text = (
+            "<b>Amarelo Keys</b><br><br>"
+            "Desenvolvido em 2026<br>"
+            f"Versão {VERSION}<br><br>"
+            "Por: Roberto Araujo de Moraes Freitas<br>"
+            "Contato: robertoaraujomf@gmail.com"
+        )
+        QMessageBox.about(self, "Sobre - Amarelo Keys", about_text)
+
     def closeEvent(self, event):
         """Hide window instead of closing when closing from title bar"""
         event.ignore()
