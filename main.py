@@ -554,6 +554,9 @@ class ConfigWindow(QMainWindow):
         menu = QMenu()
         menu.addAction("Abrir Configuração", self.show_config)
         menu.addSeparator()
+        menu.addAction("Ajuda", self.show_help)
+        menu.addAction("Sobre", self.show_about)
+        menu.addSeparator()
         menu.addAction("Sair", self.quit_app)
         self.tray.setContextMenu(menu)
 
@@ -697,6 +700,28 @@ class ConfigWindow(QMainWindow):
         if self.hotkey_listener:
             self.hotkey_listener.stop()
         QApplication.quit()
+
+    def show_help(self):
+        help_text = (
+            "<b>Como usar o Amarelo Keys:</b><br><br>"
+            "1. Abra as configurações pelo menu do tray ou clique duas vezes no ícone.<br>"
+            "2. Selecione a tecla defeituosa que deseja mapear.<br>"
+            "3. Escolha a tecla de substituição.<br>"
+            "4. Clique em 'Adicionar Mapeamento'.<br>"
+            "5. O mapeamento será ativado automaticamente.<br><br>"
+            "Use o tray icon para acessar rapidamente as configurações ou reiniciar o listener."
+        )
+        QMessageBox.information(self, "Ajuda - Amarelo Keys", help_text)
+
+    def show_about(self):
+        about_text = (
+            "<b>Amarelo Keys</b><br><br>"
+            "Desenvolvido em 2026<br>"
+            f"Versão {VERSION}<br><br>"
+            "Por: Roberto Araujo de Moraes Freitas<br>"
+            "Contato: robertoaraujomf@gmail.com"
+        )
+        QMessageBox.about(self, "Sobre - Amarelo Keys", about_text)
 
     def closeEvent(self, event):
         event.ignore()
