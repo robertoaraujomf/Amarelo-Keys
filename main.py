@@ -541,9 +541,9 @@ class ConfigWindow(QMainWindow):
         self.tray.setToolTip(APP_NAME)
 
         # Try app_icon.png first (preserves transparency), then tray-icon.png
-        icon_path = Path(__file__).parent / "app_icon.png"
+        icon_path = Path(__file__).parent / "icons" / "tray-icon.png"
         if not icon_path.exists():
-            icon_path = Path(__file__).parent / "icons" / "tray-icon.png"
+            icon_path = Path(__file__).parent / "app_icon.png"
         if icon_path.exists():
             self.tray.setIcon(QIcon(str(icon_path)))
         else:
