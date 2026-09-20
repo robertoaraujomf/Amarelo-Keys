@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QListWidgetItem, QComboBox,
     QDialog, QDialogButtonBox, QMessageBox, QGroupBox, QScrollArea,
-    QFrame, QLineEdit, QAction, QMenu, QSystemTrayIcon, QStyle,
+    QFrame, QLineEdit, QCheckBox, QMenu, QSystemTrayIcon, QStyle,
     QGraphicsDropShadowEffect, QSizePolicy, QInputDialog
 )
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal, QSettings, QPoint, QRect
@@ -818,12 +818,6 @@ class ConfigWindow(QMainWindow):
         menu = QMenu()
         menu.addAction("Abrir Configuração", self.show_config)
         menu.addSeparator()
-        self.sticky_action = QAction("Teclas de aderência", self)
-        self.sticky_action.setCheckable(True)
-        self.sticky_action.setChecked(self.sticky_enabled)
-        self.sticky_action.toggled.connect(self.set_sticky_enabled)
-        menu.addAction(self.sticky_action)
-        menu.addSeparator()
         menu.addAction("Ajuda", self.show_help)
         menu.addAction("Sobre", self.show_about)
         menu.addSeparator()
@@ -1054,6 +1048,22 @@ class SelectionWindow(QWidget):
                 background-color: #FFD700;
                 color: #1a2332;
             }
+            QCheckBox {
+                color: #e0e0e0;
+                font-size: 12px;
+                spacing: 6px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #3d4a5c;
+                border-radius: 3px;
+                background-color: #2d3a4f;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #FFD700;
+                border-color: #FFD700;
+            }
         """)
 
         layout = QVBoxLayout(self)
@@ -1079,6 +1089,12 @@ class SelectionWindow(QWidget):
         self.list_widget.setCurrentRow(0)
         self.list_widget.itemClicked.connect(self.on_item_click)
         frame_layout.addWidget(self.list_widget)
+
+        self.sticky_cb = QCheckBox("Teclas de aderência")
+        if self.parent_window is not None:
+            self.sticky_cb.setChecked(bool(getattr(self.parent_window, "sticky_enabled", False)))
+            self.sticky_cb.toggled.connect(self.parent_window.set_sticky_enabled)
+        frame_layout.addWidget(self.sticky_cb)
 
         hint = QLabel("↑↓ Navegar  |  Enter: Enviar  |  Esc: Sair")
         hint.setStyleSheet("color: #5a6a7a; font-size: 10px;")
