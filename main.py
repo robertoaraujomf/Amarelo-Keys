@@ -238,7 +238,8 @@ class KeySender:
         self.last_window = None
         self.use_xdotool = shutil.which("xdotool") is not None
         self._dpy = None
-        if not self.use_xdotool and HAS_XTEST:
+        self._mod_keycode_cache = {}
+        if HAS_XTEST:
             try:
                 self._dpy = display.Display()
             except Exception as e:
@@ -250,6 +251,10 @@ class KeySender:
             print("DEBUG: KeySender usando XTest (xdotool ausente)", flush=True)
         else:
             print("DEBUG: KeySender sem backend disponivel", flush=True)
+
+    @property
+    def has_xtest(self):
+        return HAS_XTEST and self._dpy is not None
 
     def get_active_window(self):
         """Get the currently active window ID"""
@@ -366,6 +371,56 @@ class KeySender:
         time.sleep(0.05)
         return True
 
+    def _xtest_modifier_keycode(self, code):
+        """Return the X keycode used to synthesize a held modifier for an evdev code (0 if unavailable)"""
+        if not self.has_xtest:
+            return 0
+        if code in self._mod_keycode_cache:
+            return self._mod_keycode_cache[code]
+        syms = {
+            29: XK.XK_Control_L, 97: XK.XK_Control_R,
+            42: XK.XK_Shift_L, 54: XK.XK_Shift_R,
+            56: XK.XK_Alt_L, 100: XK.XK_Alt_R,
+        }
+        sym = syms.get(code, 0)
+        kc = 0
+        if sym:
+            kc = self._dpy.keysym_to_keycode(sym)
+            if not kc and sym == XK.XK_Alt_R:
+                kc = self._dpy.keysym_to_keycode(0xFE03)  # AltGr (ISO_Level3_Shift)
+        self._mod_keycode_cache[code] = kc
+        return kc
+
+    def xtest_modifier_press(self, code):
+        """Synthesize a held modifier press for an evdev modifier code via XTest"""
+        if not self.has_xtest:
+            return False
+        kc = self._xtest_modifier_keycode(code)
+        if not kc:
+            return False
+        try:
+            xtest.fake_input(self._dpy, X.KeyPress, kc)
+            self._dpy.flush()
+            return True
+        except Exception as e:
+            print(f"SEND error (sticky press): {e}", flush=True)
+            return False
+
+    def xtest_modifier_release(self, code):
+        """Release a synthesized modifier for an evdev modifier code via XTest"""
+        if not self.has_xtest:
+            return False
+        kc = self._xtest_modifier_keycode(code)
+        if not kc:
+            return False
+        try:
+            xtest.fake_input(self._dpy, X.KeyRelease, kc)
+            self._dpy.flush()
+            return True
+        except Exception as e:
+            print(f"SEND error (sticky release): {e}", flush=True)
+            return False
+
     def _send_key_xtest(self, xkey):
         """Send a key using XTest (python-xlib) when xdotool is not available"""
         keysym = self._xtest_keysym(xkey)
@@ -417,6 +472,9 @@ class GlobalHotkeyListener(QThread):
     insert_pressed = pyqtSignal()
     key_pressed = pyqtSignal(int)
 
+    # evdev codes of modifier keys that can be latched (teclas de aderência)
+    STICKY_MODIFIER_CODES = {29, 97, 42, 54, 56, 100}
+
     def __init__(self):
         super().__init__()
         self.running = True
@@ -426,9 +484,23 @@ class GlobalHotkeyListener(QThread):
         self._last_key_time = 0
         self._keyboard_grabbed = False
         self._grab_lock = threading.Lock()
+        self.sticky_enabled = False
+        self.key_sender = None
+        self._sticky_latched = set()
+        self._sticky_phys_down = set()
+        self._sticky_typed_while_mod = set()
+        self._sticky_release_on_next = False
+        self._sticky_release_pending = False
+        self._sticky_reset_pending = False
 
     def stop(self):
         self.running = False
+        self._sticky_release_pending = True
+
+    def set_sticky_enabled(self, enabled):
+        self.sticky_enabled = bool(enabled)
+        if not self.sticky_enabled:
+            self._sticky_release_pending = True
 
     def set_overlay_active(self, active):
         with self._grab_lock:
@@ -446,6 +518,52 @@ class GlobalHotkeyListener(QThread):
                         print("DEBUG: Keyboard ungrabbed (from main thread)", flush=True)
                 except Exception as e:
                     print(f"DEBUG: immediate grab/ungrab error: {e}", flush=True)
+        self._sticky_release_pending = True
+        self._sticky_reset_pending = True
+
+    def _release_sticky_latches(self):
+        if not self.key_sender:
+            return
+        for code in list(self._sticky_latched):
+            try:
+                self.key_sender.xtest_modifier_release(code)
+            except Exception:
+                pass
+        self._sticky_latched.clear()
+
+    def _handle_sticky_event(self, code, value):
+        """Track modifier presses and latch them (sticky keys) until the next key"""
+        if not self.sticky_enabled:
+            return
+        if self.overlay_active:
+            return
+        if not self.key_sender:
+            return
+
+        if code in self.STICKY_MODIFIER_CODES:
+            if value == 1:  # press
+                self._sticky_typed_while_mod.discard(code)
+                if self._sticky_latched:
+                    self._release_sticky_latches()
+                self._sticky_phys_down.add(code)
+            elif value == 0:  # release
+                if code in self._sticky_phys_down:
+                    self._sticky_phys_down.discard(code)
+                    if code in self._sticky_typed_while_mod:
+                        self._sticky_typed_while_mod.discard(code)
+                    else:
+                        self._sticky_latched.add(code)
+                        self.key_sender.xtest_modifier_press(code)
+        else:
+            if value == 1:  # press on a regular key
+                if self._sticky_phys_down:
+                    self._sticky_typed_while_mod.update(self._sticky_phys_down)
+                if self._sticky_latched:
+                    self._sticky_release_on_next = True
+            elif value == 0:  # release
+                if self._sticky_release_on_next:
+                    self._sticky_release_on_next = False
+                    self._release_sticky_latches()
 
     def run(self):
         print("DEBUG: Listener thread started", flush=True)
@@ -487,6 +605,18 @@ class GlobalHotkeyListener(QThread):
                     should_grab = self.overlay_active
                     already_grabbed = self._keyboard_grabbed
 
+                if self._sticky_release_pending:
+                    self._sticky_release_pending = False
+                    try:
+                        self._release_sticky_latches()
+                    except Exception:
+                        pass
+                if self._sticky_reset_pending:
+                    self._sticky_reset_pending = False
+                    self._sticky_phys_down.clear()
+                    self._sticky_typed_while_mod.clear()
+                    self._sticky_release_on_next = False
+
                 if should_grab and not already_grabbed:
                     try:
                         kbd.grab()
@@ -507,6 +637,8 @@ class GlobalHotkeyListener(QThread):
                 try:
                     for event in kbd.read():
                         if event.type == evdev.ecodes.EV_KEY:
+                            if event.value in (0, 1):
+                                self._handle_sticky_event(event.code, event.value)
                             if event.value == 1:  # Key press
                                 now = time.time()
                                 
@@ -535,6 +667,7 @@ class GlobalHotkeyListener(QThread):
                     print(f"Event loop error: {e}", flush=True)
                     time.sleep(0.1)
         finally:
+            self._release_sticky_latches()
             try:
                 with self._grab_lock:
                     was_grabbed = self._keyboard_grabbed
@@ -685,6 +818,12 @@ class ConfigWindow(QMainWindow):
         menu = QMenu()
         menu.addAction("Abrir Configuração", self.show_config)
         menu.addSeparator()
+        self.sticky_action = QAction("Teclas de aderência", self)
+        self.sticky_action.setCheckable(True)
+        self.sticky_action.setChecked(self.sticky_enabled)
+        self.sticky_action.toggled.connect(self.set_sticky_enabled)
+        menu.addAction(self.sticky_action)
+        menu.addSeparator()
         menu.addAction("Ajuda", self.show_help)
         menu.addAction("Sobre", self.show_about)
         menu.addSeparator()
@@ -710,10 +849,12 @@ class ConfigWindow(QMainWindow):
         print(f"DEBUG: Autostart configured: {AUTOSTART_FILE}", flush=True)
 
     def load_config(self):
+        self.sticky_enabled = False
         if CONFIG_FILE.exists():
             try:
                 data = json.loads(CONFIG_FILE.read_text())
                 self.selected_items = [KeySymbol.from_dict(d) for d in data.get("items", [])]
+                self.sticky_enabled = bool(data.get("sticky_keys", False))
             except:
                 self.selected_items = []
         else:
@@ -722,7 +863,10 @@ class ConfigWindow(QMainWindow):
     def save_config(self):
         if not CONFIG_DIR.exists():
             CONFIG_DIR.mkdir(parents=True)
-        data = {"items": [item.to_dict() for item in self.selected_items]}
+        data = {
+            "items": [item.to_dict() for item in self.selected_items],
+            "sticky_keys": bool(getattr(self, "sticky_enabled", False)),
+        }
         CONFIG_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
     def update_available_list(self):
@@ -767,9 +911,18 @@ class ConfigWindow(QMainWindow):
         self.hide()
         self.start_hotkey_listener()
 
+    def set_sticky_enabled(self, enabled):
+        self.sticky_enabled = bool(enabled)
+        if self.hotkey_listener:
+            self.hotkey_listener.set_sticky_enabled(self.sticky_enabled)
+        self.save_config()
+        print(f"DEBUG: Teclas de aderência {'ATIVADAS' if self.sticky_enabled else 'desativadas'}", flush=True)
+
     def start_hotkey_listener(self):
         if self.hotkey_listener is None:
             self.hotkey_listener = GlobalHotkeyListener()
+            self.hotkey_listener.key_sender = self.key_sender
+            self.hotkey_listener.set_sticky_enabled(self.sticky_enabled)
             self.hotkey_listener.insert_pressed.connect(self.toggle_selection_window, type=Qt.QueuedConnection)
             self.hotkey_listener.start()
 
