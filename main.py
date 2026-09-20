@@ -46,7 +46,7 @@ except ImportError:
     HAS_XTEST = False
 
 APP_NAME = "Amarelo Keys"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 CONFIG_DIR = Path.home() / ".config" / "amarelo-keys"
 CONFIG_FILE = CONFIG_DIR / "config.json"

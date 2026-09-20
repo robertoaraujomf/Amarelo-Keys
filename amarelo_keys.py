@@ -31,7 +31,7 @@ from Xlib.ext import xtest
 
 APP_NAME = "Amarelo Keys"
 APP_ID = "com.amarelokeys.app"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 CONFIG_DIR = Path.home() / ".config" / "amarelo-keys"
 CONFIG_FILE = CONFIG_DIR / "mappings.json"
 AUTOSTART_FILE = Path.home() / ".config" / "autostart" / "amarelo-keys.desktop"
