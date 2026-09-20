@@ -12,6 +12,7 @@ import threading
 import time
 import atexit
 import fcntl
+import shutil
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
@@ -36,6 +37,13 @@ except ImportError:
     ecodes = None
     class ecodes:
         KEY_INSERT = 0
+
+try:
+    from Xlib import display, X, XK
+    from Xlib.ext import xtest
+    HAS_XTEST = True
+except ImportError:
+    HAS_XTEST = False
 
 APP_NAME = "Amarelo Keys"
 VERSION = "1.0.0"
@@ -207,42 +215,173 @@ class KeySender:
                     "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
                     "Insert", "KP_Enter", "Pause", "Print"}
 
+    # Keysyms for special characters not resolvable via XK.string_to_keysym
+    if HAS_XTEST:
+        XCHAR_KEYSYMS = {
+            "|": XK.XK_bar, "\\": XK.XK_backslash, "~": XK.XK_asciitilde, "`": XK.XK_grave,
+            "!": XK.XK_exclam, "@": XK.XK_at, "#": XK.XK_numbersign, "$": XK.XK_dollar,
+            "%": XK.XK_percent, "^": XK.XK_asciicircum, "&": XK.XK_ampersand,
+            "*": XK.XK_asterisk, "(": XK.XK_parenleft, ")": XK.XK_parenright,
+            "-": XK.XK_minus, "+": XK.XK_plus, "=": XK.XK_equal,
+            "[": XK.XK_bracketleft, "]": XK.XK_bracketright,
+            "{": XK.XK_braceleft, "}": XK.XK_braceright,
+            ";": XK.XK_semicolon, ":": XK.XK_colon,
+            "'": XK.XK_apostrophe, '"': XK.XK_quotedbl,
+            ",": XK.XK_comma, ".": XK.XK_period, "/": XK.XK_slash,
+            "?": XK.XK_question, "<": XK.XK_less, ">": XK.XK_greater,
+            "_": XK.XK_underscore, " ": XK.XK_space,
+        }
+    else:
+        XCHAR_KEYSYMS = {}
+
     def __init__(self):
         self.last_window = None
+        self.use_xdotool = shutil.which("xdotool") is not None
+        self._dpy = None
+        if not self.use_xdotool and HAS_XTEST:
+            try:
+                self._dpy = display.Display()
+            except Exception as e:
+                print(f"DEBUG: XTest display init error: {e}", flush=True)
+                self._dpy = None
+        if self.use_xdotool:
+            print("DEBUG: KeySender usando xdotool", flush=True)
+        elif HAS_XTEST and self._dpy is not None:
+            print("DEBUG: KeySender usando XTest (xdotool ausente)", flush=True)
+        else:
+            print("DEBUG: KeySender sem backend disponivel", flush=True)
 
     def get_active_window(self):
         """Get the currently active window ID"""
-        try:
-            result = subprocess.run(
-                ["xdotool", "getactivewindow"],
-                capture_output=True, text=True, timeout=2
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except:
-            pass
+        if self.use_xdotool:
+            try:
+                result = subprocess.run(
+                    ["xdotool", "getactivewindow"],
+                    capture_output=True, text=True, timeout=2
+                )
+                if result.returncode == 0:
+                    return result.stdout.strip()
+            except:
+                pass
+            return None
+        if HAS_XTEST and self._dpy is not None:
+            try:
+                focus = self._dpy.get_input_focus().focus
+                if focus is not None and getattr(focus, "id", None):
+                    return str(focus.id)
+            except Exception:
+                pass
+            return None
         return None
 
     def focus_window(self, window_id):
         """Focus a specific window by ID"""
         if not window_id:
             return False
-        try:
-            result = subprocess.run(
-                ["xdotool", "windowfocus", "--sync", window_id],
-                capture_output=True, text=True, timeout=2
-            )
-            print(f"FOCUS windowfocus: rc={result.returncode}", flush=True)
-            time.sleep(0.3)
-            return result.returncode == 0
-        except Exception as e:
-            print(f"FOCUS error: {e}", flush=True)
+        if self.use_xdotool:
+            try:
+                result = subprocess.run(
+                    ["xdotool", "windowfocus", "--sync", window_id],
+                    capture_output=True, text=True, timeout=2
+                )
+                print(f"FOCUS windowfocus: rc={result.returncode}", flush=True)
+                time.sleep(0.3)
+                return result.returncode == 0
+            except Exception as e:
+                print(f"FOCUS error: {e}", flush=True)
+                return False
+        if HAS_XTEST and self._dpy is not None:
+            try:
+                win = self._dpy.create_resource_object("window", int(window_id))
+                win.set_input_focus(X.RevertToParent, X.CurrentTime)
+                self._dpy.flush()
+                return True
+            except Exception as e:
+                print(f"FOCUS error (xtest): {e}", flush=True)
+                return False
+        return False
+
+    def _xtest_is_special(self, xkey):
+        if xkey in ["Tab", "shift+Tab", "ISO_Left_Tab", "Return", "Enter", "Escape", "BackSpace",
+                    "Delete", "Home", "End", "Prior", "Next", "Left", "Right",
+                    "Up", "Down", "Insert", "Pause", "Print"]:
+            return True
+        if len(xkey) >= 2 and xkey.startswith("F") and xkey[1:].isdigit():
+            return True
+        if len(xkey) >= 3 and xkey.startswith("KP_") and xkey[3:].isdigit():
+            return True
+        return False
+
+    def _xtest_keysym(self, xkey):
+        """Resolve an xdotool-style key/char name to an X keysym (0 if unknown)"""
+        if xkey == "ISO_Left_Tab":
+            return 0x0FE20
+        if xkey == "shift+Tab":
+            return 0x0FE20
+        if xkey == "Enter":
+            return XK.XK_Return
+        if self._xtest_is_special(xkey):
+            return self.XCHAR_KEYSYMS.get(xkey, getattr(XK, f"XK_{xkey}", 0))
+        keysym = XK.string_to_keysym(xkey)
+        if not keysym:
+            keysym = self.XCHAR_KEYSYMS.get(xkey, 0)
+        return keysym
+
+    def _xtest_press_keysym(self, keysym):
+        """Simulate a key press for an X keysym via XTest, handling required modifiers"""
+        d = self._dpy
+        if d is None or not keysym:
             return False
+        pairs = list(d.keysym_to_keycodes(keysym))
+        if not pairs:
+            return False
+        keycode, index = min(pairs, key=lambda p: p[1])
+
+        modifiers = []
+        if index in (1, 3, 5, 7):
+            modifiers.append(XK.XK_Shift_L)
+        if index in (2, 3, 6, 7):
+            modifiers.append(0xFF7E)  # Mode_switch
+        if index in (4, 5, 6, 7):
+            modifiers.append(0xFE03)  # ISO_Level3_Shift
+
+        mod_keycodes = []
+        for mod_sym in modifiers:
+            mkc = d.keysym_to_keycode(mod_sym)
+            if not mkc:
+                return False
+            mod_keycodes.append(mkc)
+
+        try:
+            for mkc in mod_keycodes:
+                xtest.fake_input(d, X.KeyPress, mkc)
+            xtest.fake_input(d, X.KeyPress, keycode)
+            xtest.fake_input(d, X.KeyRelease, keycode)
+            for mkc in mod_keycodes:
+                xtest.fake_input(d, X.KeyRelease, mkc)
+            d.flush()
+        except Exception as e:
+            print(f"SEND error (xtest): {e}", flush=True)
+            return False
+        time.sleep(0.05)
+        return True
+
+    def _send_key_xtest(self, xkey):
+        """Send a key using XTest (python-xlib) when xdotool is not available"""
+        keysym = self._xtest_keysym(xkey)
+        if not keysym:
+            print(f"SEND no keysym for: {xkey}", flush=True)
+            return False
+        print(f"SEND (xtest): xkey={xkey}, keysym={hex(keysym)}", flush=True)
+        return self._xtest_press_keysym(keysym)
 
     def send_key(self, xkey, window_id=None):
         """Send a key to the specified window or active window"""
         if not xkey:
             return False
+
+        if not self.use_xdotool:
+            return self._send_key_xtest(xkey)
 
         if xkey == "ISO_Left_Tab" or xkey == "shift+Tab":
             xkey = "shift+Tab"
@@ -257,11 +396,7 @@ class KeySender:
                 self.focus_window(target_window)
 
             # Check if the key is a special key
-            is_special = (xkey in ["Tab", "shift+Tab", "Return", "Enter", "Escape", "BackSpace",
-                                   "Delete", "Home", "End", "Prior", "Next", "Left", "Right",
-                                   "Up", "Down", "Insert", "Pause", "Print"] or
-                          (len(xkey) >= 2 and xkey.startswith("F") and xkey[1:].isdigit()) or
-                          (len(xkey) >= 3 and xkey.startswith("KP_") and xkey[3:].isdigit()))
+            is_special = self._xtest_is_special(xkey)
 
             if is_special:
                 cmd = ["xdotool", "key", "--clearmodifiers", "--delay", "50", xkey]
@@ -272,10 +407,6 @@ class KeySender:
             print(f"SEND cmd: {' '.join(cmd)}", flush=True)
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
             print(f"SEND result: rc={result.returncode}, stderr={result.stderr.strip()}", flush=True)
-            return result.returncode == 0
-        except Exception as e:
-            print(f"SEND error: {e}", flush=True)
-            return False
             return result.returncode == 0
         except Exception as e:
             print(f"SEND error: {e}", flush=True)
