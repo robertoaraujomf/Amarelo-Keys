@@ -1154,6 +1154,7 @@ class SelectionWindow(QWidget):
         self.parent_window = parent_window
         self.current_index = 0
         self.target_window = None
+        self._suppress_auto_check_until = 0.0
 
         # Set window flags BEFORE any other operations
         self.setWindowFlags(Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus)
@@ -1255,13 +1256,16 @@ class SelectionWindow(QWidget):
         """Checkbox liga/desliga a aderência e libera as teclas modificadoras presas"""
         if self.parent_window is None:
             return
+        import time
         if checked:
+            self._suppress_auto_check_until = 0.0
             self.parent_window.set_sticky_enabled(True)
             self.refresh_sticky_state()
             return
 
         released = self.parent_window.release_stuck_modifiers()
         self.parent_window.set_sticky_enabled(False)
+        self._suppress_auto_check_until = time.time() + 1.0
         if released:
             names = ", ".join(MODIFIER_NAMES.get(c, f"tecla {c}") for c in released)
             note = f"Tecla liberada: {names}"
@@ -1287,7 +1291,11 @@ class SelectionWindow(QWidget):
         codes = self._detected_modifiers()
 
         self.sticky_cb.blockSignals(True)
-        self.sticky_cb.setChecked(sticky_sys or toggle_sys or app_sticky or bool(codes))
+        import time
+        should_check = sticky_sys or toggle_sys or app_sticky or bool(codes)
+        if time.time() < getattr(self, '_suppress_auto_check_until', 0):
+            should_check = False
+        self.sticky_cb.setChecked(should_check)
         self.sticky_cb.blockSignals(False)
 
         state = (
