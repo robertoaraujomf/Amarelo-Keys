@@ -71,6 +71,20 @@ MODIFIER_NAMES = {
 }
 
 
+
+def _gsettings_set(schema, key, value):
+    try:
+        result = subprocess.run(
+            ["gsettings", "set", schema, key, value],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode != 0:
+            print(f"DEBUG: gsettings set {schema} {key}={value}: {result.stderr}", flush=True)
+        return result.returncode == 0
+    except Exception as e:
+        print(f"DEBUG: gsettings set {schema} {key}={value}: {e}", flush=True)
+    return False
+
 def _gsettings_get(schema, key):
     try:
         result = subprocess.run(
@@ -99,6 +113,25 @@ def system_sticky_enabled():
 def system_toggle_enabled():
     """True se as teclas de alternância estiverem habilitadas no sistema"""
     return system_feature_enabled(SYSTEM_TOGGLE_KEYS)
+def system_sticky_disable():
+    for schema, key in SYSTEM_STICKY_KEYS:
+        _gsettings_set(schema, key, "false")
+
+
+def system_sticky_enable():
+    for schema, key in SYSTEM_STICKY_KEYS:
+        _gsettings_set(schema, key, "true")
+
+
+def system_toggle_disable():
+    for schema, key in SYSTEM_TOGGLE_KEYS:
+        _gsettings_set(schema, key, "false")
+
+
+def system_toggle_enable():
+    for schema, key in SYSTEM_TOGGLE_KEYS:
+        _gsettings_set(schema, key, "true")
+
 
 
 _SYSTEM_STATE_CACHE = {"time": 0.0, "sticky": False, "toggle": False}
@@ -1257,15 +1290,19 @@ class SelectionWindow(QWidget):
         if self.parent_window is None:
             return
         import time
+        self._user_action_time = time.time()
+        self._user_checked = checked
         if checked:
-            self._suppress_auto_check_until = 0.0
             self.parent_window.set_sticky_enabled(True)
+            system_sticky_enable()
+            system_toggle_enable()
             self.refresh_sticky_state()
             return
 
         released = self.parent_window.release_stuck_modifiers()
         self.parent_window.set_sticky_enabled(False)
-        self._suppress_auto_check_until = time.time() + 1.0
+        system_sticky_disable()
+        system_toggle_disable()
         if released:
             names = ", ".join(MODIFIER_NAMES.get(c, f"tecla {c}") for c in released)
             note = f"Tecla liberada: {names}"
@@ -1292,9 +1329,12 @@ class SelectionWindow(QWidget):
 
         self.sticky_cb.blockSignals(True)
         import time
-        should_check = sticky_sys or toggle_sys or app_sticky or bool(codes)
-        if time.time() < getattr(self, '_suppress_auto_check_until', 0):
-            should_check = False
+        # If user just acted recently, respect their action
+        user_action_time = getattr(self, '_user_action_time', 0)
+        if time.time() - user_action_time < 1.5:
+            should_check = getattr(self, '_user_checked', (sticky_sys or toggle_sys or app_sticky or bool(codes)))
+        else:
+            should_check = sticky_sys or toggle_sys or app_sticky or bool(codes)
         self.sticky_cb.setChecked(should_check)
         self.sticky_cb.blockSignals(False)
 
