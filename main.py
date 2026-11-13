@@ -46,7 +46,7 @@ except ImportError:
     HAS_XTEST = False
 
 APP_NAME = "Amarelo Keys"
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 CONFIG_DIR = Path.home() / ".config" / "amarelo-keys"
 CONFIG_FILE = CONFIG_DIR / "config.json"
@@ -1148,6 +1148,10 @@ class ConfigWindow(QMainWindow):
     def quit_app(self):
         if self.hotkey_listener:
             self.hotkey_listener.stop()
+        blocker = getattr(self, "_insert_blocker", None)
+        if blocker is not None:
+            blocker.stop()
+            blocker.join(timeout=1)
         QApplication.quit()
 
     def show_help(self):
@@ -1432,11 +1436,80 @@ class SelectionWindow(QWidget):
         super().hide()
 
 
+class InsertBlockerThread(threading.Thread):
+    """Bloqueia a tecla Insert a nivel do X11 para evitar seu funcionamento original"""
+
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.running = True
+        self._display = None
+
+    def run(self):
+        try:
+            self._display = display.Display()
+        except Exception as e:
+            print(f"DEBUG: Insert blocker display error: {e}", flush=True)
+            return
+
+        root = self._display.screen().root
+        keycode = self._display.keysym_to_keycode(XK.XK_Insert)
+        if not keycode:
+            print("DEBUG: Insert keycode nao encontrado", flush=True)
+            try:
+                self._display.close()
+            except Exception:
+                pass
+            return
+
+        try:
+            root.grab_key(keycode, X.AnyModifier, owner_events=True,
+                          pointer_mode=X.GrabModeAsync, keyboard_mode=X.GrabModeAsync)
+            self._display.sync()
+            print("DEBUG: Insert key grabbed at X level", flush=True)
+        except Exception as e:
+            print(f"DEBUG: XGrabKey error: {e}", flush=True)
+            try:
+                self._display.close()
+            except Exception:
+                pass
+            return
+
+        import select
+        while self.running:
+            try:
+                r, _, _ = select.select([self._display.fileno()], [], [], 0.2)
+                if r:
+                    while self._display.pending_events():
+                        self._display.next_event()
+            except Exception as e:
+                if self.running:
+                    print(f"DEBUG: Insert blocker loop error: {e}", flush=True)
+                break
+
+        try:
+            root.ungrab_key(keycode, X.AnyModifier)
+            self._display.sync()
+        except Exception:
+            pass
+        try:
+            self._display.close()
+        except Exception:
+            pass
+
+    def stop(self):
+        self.running = False
+
+
 def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
+    insert_blocker = InsertBlockerThread()
+    insert_blocker.start()
+    app._insert_blocker = insert_blocker
+
     window = ConfigWindow()
+    window._insert_blocker = insert_blocker
     # Check if --minimized flag is passed
     if "--minimized" not in sys.argv:
         window.show()

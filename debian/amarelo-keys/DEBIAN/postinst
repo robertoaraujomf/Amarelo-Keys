@@ -32,7 +32,7 @@ if [ -n "$SUDO_USER" ]; then
 Type=Application
 Name=Amarelo Keys
 Comment=Acessibilidade para teclas defeituosas
-Exec=python3 /usr/share/amarelo-keys/amarelo_keys.py
+Exec=python3 /usr/share/amarelo-keys/main.py
 Icon=amarelo-keys
 Terminal=false
 X-GNOME-Autostart-enabled=true
@@ -42,6 +42,7 @@ fi
 
 # Set permissions
 chmod +x /usr/share/amarelo-keys/amarelo_keys.py 2>/dev/null || true
+chmod +x /usr/share/amarelo-keys/main.py 2>/dev/null || true
 chmod +x /usr/share/amarelo-keys/installer.py 2>/dev/null || true
 
 echo "Amarelo Keys instalado com sucesso!"

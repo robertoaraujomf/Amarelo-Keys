@@ -1,0 +1,7 @@
+#!/bin/bash
+set -e
+if [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    rm -f "$USER_HOME/.config/autostart/amarelo-keys.desktop" 2>/dev/null || true
+fi
+echo "Amarelo Keys removido."

@@ -34,7 +34,7 @@ try:
         QApplication, QStyleFactory
     )
     from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPropertyAnimation, QEasingCurve
-    from PyQt5.QtGui import QColor, QPalette, QFont, QPainter, QBrush, QIcon, QPixmap, QLinearGradient, QGradient
+    from PyQt5.QtGui import QColor, QPalette, QFont, QPainter, QBrush, QIcon, QPixmap, QLinearGradient, QGradient, QPen
     PYQT_AVAILABLE = True
 except ImportError:
     PYQT_AVAILABLE = False
